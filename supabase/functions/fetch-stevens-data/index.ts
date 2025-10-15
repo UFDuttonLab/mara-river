@@ -128,40 +128,43 @@ serve(async (req) => {
     const targetStationName = targetStation.name;
     console.log(`Found target station: ${targetStationName} (ID: ${targetStationId}, Code: CF4DF9C92B33)`);
     
-    // Step 2.5: Fetch station-specific channels from the dedicated API endpoint
-    console.log('Step 2.5: Fetching station channels...');
-    const channelsUrl = `${BASE_URL}/project/${projectId}/config/channels?station_id=${targetStationId}`;
-    const channelsResponse = await fetch(channelsUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
+    // Step 2.5: Extract station-specific channels from config packet
+    console.log('Step 2.5: Extracting station channels from config packet...');
+
+    const stationSensors = targetStation.sensors || [];
+    console.log(`Found ${stationSensors.length} sensors for station ${targetStationName}`);
+
+    // Flatten all channels from all sensors
+    const stationChannels: any[] = [];
+    stationSensors.forEach((sensor: any) => {
+      const sensorChannels = sensor.channels || [];
+      sensorChannels.forEach((channel: any) => {
+        stationChannels.push({
+          ...channel,
+          sensor_id: sensor.id,
+          sensor_name: sensor.name, // e.g., "M20"
+          sensor_status: sensor.status
+        });
+      });
     });
 
-    if (!channelsResponse.ok) {
-      const errorText = await channelsResponse.text();
-      console.error('Channels fetch failed:', errorText);
-      throw new Error(`Channels fetch failed: ${channelsResponse.status}`);
-    }
-
-    const channelsData = await channelsResponse.json();
-    console.log('Channels data received:', JSON.stringify(channelsData, null, 2).substring(0, 1000));
-    
-    // Extract station channels (these are the actual sensor data channels)
-    const stationChannels = channelsData.data?.channels || [];
-    console.log(`Found ${stationChannels.length} station channels`);
+    console.log(`Found ${stationChannels.length} total channels across all sensors`);
     console.log('Sample channels:', stationChannels.slice(0, 5).map((ch: any) => ({
       id: ch.id,
       name: ch.name,
       sensor: ch.sensor_name,
-      status: ch.status,
-      unit: ch.unit
+      unit_id: ch.unit_id,
+      status: ch.sensor_status
     })));
-    
-    // Filter for active channels only
-    const activeChannels = stationChannels.filter((ch: any) => ch.status === 1);
+
+    // Filter for active sensors only
+    const activeChannels = stationChannels.filter((ch: any) => ch.sensor_status === 1);
     console.log(`Active channels: ${activeChannels.length}`);
-    
+
+    // Get units dictionary from config packet
+    const units = configData.data?.config_packet?.units || [];
+    const unitMap = new Map(units.map((u: any) => [u.id, u.unit]));
+
     // Build channel map with proper metadata
     const channelMap = new Map<number, any>();
     activeChannels.forEach((ch: any) => {
@@ -169,8 +172,8 @@ serve(async (req) => {
         id: ch.id,
         name: ch.name, // e.g., "Cable Power (V)", "SC (uS)"
         sensorName: ch.sensor_name || 'Unknown Sensor', // e.g., "M20"
-        unit: ch.unit || '',
-        precision: ch.precision || 2,
+        unit: unitMap.get(ch.unit_id) || '',
+        precision: 2,
         category: ch.sensor_name || 'Other Sensors'
       });
     });

@@ -281,6 +281,58 @@ serve(async (req) => {
     console.log('Sensors by category:', Array.from(sensorsByCategory.keys()));
     console.log('Data fetch complete');
 
+    // Generate AI analysis if we have sensor data
+    let analysisText = '';
+    if (sensors.length > 0) {
+      try {
+        console.log('Generating AI analysis...');
+        const analysisPayload = {
+          station: {
+            name: targetStationName,
+            location: 'Mara River, Kenya'
+          },
+          sensors: sensors.map(s => ({
+            name: s.name,
+            unit: s.unit,
+            current: s.currentValue,
+            min: Math.min(...s.readings.map((r: any) => r.value)),
+            max: Math.max(...s.readings.map((r: any) => r.value)),
+            avg: s.readings.reduce((sum: number, r: any) => sum + r.value, 0) / s.readings.length,
+            trend: s.readings.length > 1 
+              ? (s.readings[s.readings.length - 1].value - s.readings[0].value) 
+              : 0
+          })),
+          timeRange: '7 days'
+        };
+
+        // Call analyze-river-health function
+        const analysisResponse = await fetch(
+          `${Deno.env.get('SUPABASE_URL')}/functions/v1/analyze-river-health`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(analysisPayload)
+          }
+        );
+
+        if (analysisResponse.ok) {
+          const analysisData = await analysisResponse.json();
+          if (analysisData.analysis) {
+            analysisText = analysisData.analysis;
+            console.log('AI analysis generated successfully');
+          }
+        } else {
+          console.error('Analysis function error:', await analysisResponse.text());
+        }
+      } catch (error) {
+        console.error('Failed to generate AI analysis:', error);
+        // Continue without analysis rather than failing
+      }
+    }
+
     if (sensors.length === 0) {
       return new Response(JSON.stringify({ 
         data: {
@@ -312,7 +364,8 @@ serve(async (req) => {
           name,
           sensors
         })),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        analysis: analysisText // Add AI analysis
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

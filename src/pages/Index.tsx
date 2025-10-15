@@ -28,6 +28,7 @@ interface DashboardData {
   };
   sensors: Sensor[];
   timestamp: string;
+  analysis?: string;
   message?: string;
 }
 
@@ -132,6 +133,35 @@ const Index = () => {
     );
   };
 
+  const renderAnalysis = (analysis: string) => {
+    if (!analysis) return null;
+
+    return (
+      <Card className="col-span-full bg-gradient-to-br from-blue-50 to-green-50 dark:from-blue-950 dark:to-green-950 border-blue-200 dark:border-blue-800">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <span className="text-2xl">🌊</span>
+            River Health Analysis
+          </CardTitle>
+          <CardDescription>
+            AI-powered interpretation of this week's water quality data
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="prose prose-sm max-w-none dark:prose-invert">
+            {analysis.split('\n').map((paragraph, idx) => (
+              paragraph.trim() && (
+                <p key={idx} className="mb-3 leading-relaxed">
+                  {paragraph}
+                </p>
+              )
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-background p-8">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -156,7 +186,9 @@ const Index = () => {
 
         {data && data.sensors.length > 0 && (
           <>
-            <div className="space-y-4">
+            {data.analysis && renderAnalysis(data.analysis)}
+            
+            <div className="space-y-4 mt-6">
               {data.sensors.map(renderSensorChart)}
             </div>
 

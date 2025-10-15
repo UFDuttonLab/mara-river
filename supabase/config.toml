@@ -1,1 +1,7 @@
 project_id = "gsudsnelhdmixbxcghwv"
+
+[functions.fetch-stevens-data]
+verify_jwt = false
+
+[functions.analyze-river-health]
+verify_jwt = false

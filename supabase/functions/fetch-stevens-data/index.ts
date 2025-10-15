@@ -150,10 +150,15 @@ serve(async (req) => {
     console.log('Step 3: Fetching readings data...');
 
     // Step 3: Fetch readings for all channels
-    const readingsUrl = new URL(`${BASE_URL}/project/${projectId}/readings`);
-    channelIds.forEach((id: number) => readingsUrl.searchParams.append('channel_id', id.toString()));
+    const readingsUrl = new URL(`${BASE_URL}/project/${projectId}/readings/v3/channels`);
+    readingsUrl.searchParams.append('channel_ids', channelIds.join(','));
     readingsUrl.searchParams.append('range_type', 'relative');
-    readingsUrl.searchParams.append('minutes', '1440'); // Last 24 hours to ensure we get data
+    readingsUrl.searchParams.append('start_date', 'null');
+    readingsUrl.searchParams.append('end_date', 'null');
+    readingsUrl.searchParams.append('minutes', '1440');
+    readingsUrl.searchParams.append('transformation', 'none');
+    
+    console.log('Requesting readings from:', readingsUrl.toString());
 
     const readingsResponse = await fetch(readingsUrl.toString(), {
       method: 'GET',
@@ -174,22 +179,22 @@ serve(async (req) => {
 
     // Step 4: Transform data to match dashboard structure
     const sensorData: Record<string, number | null> = {};
-    const allReadings = readingsData.data?.readings || [];
+    const readingsObject = readingsData.data?.readings || {};
     
-    console.log('Readings array length:', allReadings.length);
+    console.log('Readings object keys:', Object.keys(readingsObject));
     console.log('Channels array length:', channels.length);
 
     // Create a map of channel_id to latest reading value
     const channelValueMap = new Map<number, number | null>();
     
-    allReadings.forEach((reading: any) => {
-      const channelId = reading.channel_id;
-      const value = reading.value ?? null;
-      const timestamp = reading.timestamp || reading.measured_at;
-      
-      // Keep the latest value for each channel
-      if (!channelValueMap.has(channelId) || timestamp > (channelValueMap.get(channelId) as any)?.timestamp) {
-        channelValueMap.set(channelId, value);
+    // Readings is an object keyed by channel_id
+    Object.entries(readingsObject).forEach(([channelId, readings]: [string, any]) => {
+      if (Array.isArray(readings) && readings.length > 0) {
+        // Get the latest reading (last item in array)
+        const latestReading = readings[readings.length - 1];
+        const value = latestReading?.reading ?? null;
+        channelValueMap.set(parseInt(channelId), value);
+        console.log(`Channel ${channelId}: ${value} (from ${readings.length} readings)`);
       }
     });
 

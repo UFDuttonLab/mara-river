@@ -103,7 +103,7 @@ serve(async (req) => {
     console.log('Config data received:', JSON.stringify(configData, null, 2));
 
     // Extract project and station info
-    const projects = configData.data?.projects || [];
+    const projects = configData.data?.config_packet?.projects || [];
     if (projects.length === 0) {
       throw new Error('No projects found in config packet');
     }

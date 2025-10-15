@@ -170,10 +170,14 @@ serve(async (req) => {
 
     const readingsData = await readingsResponse.json();
     console.log('Readings data received');
+    console.log('Full readings response structure:', JSON.stringify(readingsData, null, 2).substring(0, 2000));
 
     // Step 4: Transform data to match dashboard structure
     const sensorData: Record<string, number | null> = {};
     const channelReadings = readingsData.data?.channels || [];
+    
+    console.log('Channel readings array length:', channelReadings.length);
+    console.log('Channels array length:', channels.length);
 
     // Map channel data to sensor names using widget titles
     channels.forEach((channel: any, index: number) => {
@@ -233,7 +237,13 @@ serve(async (req) => {
     console.log('Transformed sensor data:', sensorData);
     console.log('Data fetch complete');
 
-    return new Response(JSON.stringify({ data: sensorData }), {
+    // Return data in the format the frontend expects
+    return new Response(JSON.stringify({ 
+      data: {
+        sensors: sensorData,
+        timestamp: new Date().toISOString()
+      }
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {

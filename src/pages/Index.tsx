@@ -5,35 +5,33 @@ import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-interface SensorData {
+interface Sensor {
+  id: string;
+  name: string;
+  value: number;
+  unit: string;
   timestamp: string;
-  sensors: {
-    temperature?: number;
-    ph?: number;
-    conductivity?: number;
-    salinity?: number;
-    tds?: number;
-    turbidity?: number;
-    chlorophyll?: number;
-    blueGreenAlgae?: number;
-    rhodamine?: number;
-    fluorescein?: number;
-    cdom?: number;
-    opticalBrighteners?: number;
-    tryptophan?: number;
-    refinedFuels?: number;
-    dissolvedOxygen?: number;
-    depth?: number;
-    latitude?: number;
-    longitude?: number;
-    battery?: number;
-    signalStrength?: number;
-    dataQuality?: number;
+  category: string;
+}
+
+interface Category {
+  name: string;
+  sensors: Sensor[];
+}
+
+interface DashboardData {
+  station: {
+    name: string;
+    id: string;
   };
+  sensors: Sensor[];
+  categories: Category[];
+  timestamp: string;
+  message?: string;
 }
 
 const Index = () => {
-  const [data, setData] = useState<SensorData | null>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -45,10 +43,19 @@ const Index = () => {
       if (error) throw error;
       
       setData(responseData.data);
-      toast({
-        title: "Data Updated",
-        description: "Stevens sensor data fetched successfully",
-      });
+      
+      if (responseData.data?.message) {
+        toast({
+          title: "No Data Available",
+          description: responseData.data.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Data Updated",
+          description: `${responseData.data.sensors.length} sensors updated successfully`,
+        });
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
@@ -65,15 +72,18 @@ const Index = () => {
     fetchData();
   }, []);
 
-  const renderMetricCard = (title: string, value: number | undefined | null, unit: string) => (
-    <Card>
+  const renderSensorCard = (sensor: Sensor) => (
+    <Card key={sensor.id}>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <CardTitle className="text-sm font-medium">{sensor.name}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">
-          {value != null ? `${value.toFixed(2)} ${unit}` : 'N/A'}
+          {sensor.value.toFixed(2)} {sensor.unit}
         </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          {new Date(sensor.timestamp).toLocaleString()}
+        </p>
       </CardContent>
     </Card>
   );
@@ -83,8 +93,12 @@ const Index = () => {
       <div className="max-w-7xl mx-auto space-y-8">
         <header className="flex items-center justify-between">
           <div>
-            <h1 className="text-4xl font-bold mb-2">Stevens Manta Dashboard</h1>
-            <p className="text-muted-foreground">Real-time water quality monitoring</p>
+            <h1 className="text-4xl font-bold mb-2">
+              {data?.station.name || 'Water Quality Dashboard'}
+            </h1>
+            <p className="text-muted-foreground">
+              {data?.station.id ? `Station ID: ${data.station.id}` : 'Real-time water quality monitoring'}
+            </p>
           </div>
           <Button onClick={fetchData} disabled={loading}>
             {loading ? (
@@ -96,73 +110,39 @@ const Index = () => {
           </Button>
         </header>
 
-        {data && (
+        {data && data.sensors.length > 0 && (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {renderMetricCard("Temperature", data.sensors.temperature, "°C")}
-              {renderMetricCard("pH Level", data.sensors.ph, "")}
-              {renderMetricCard("Conductivity", data.sensors.conductivity, "µS/cm")}
-              {renderMetricCard("Salinity", data.sensors.salinity, "PSU")}
-              {renderMetricCard("TDS", data.sensors.tds, "mg/L")}
-              {renderMetricCard("Turbidity", data.sensors.turbidity, "NTU")}
-              {renderMetricCard("Chlorophyll", data.sensors.chlorophyll, "µg/L")}
-              {renderMetricCard("Blue-Green Algae", data.sensors.blueGreenAlgae, "cells/mL")}
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Fluorescence Data</CardTitle>
-                <CardDescription>Optical measurements</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {renderMetricCard("Rhodamine", data.sensors.rhodamine, "ppb")}
-                  {renderMetricCard("Fluorescein", data.sensors.fluorescein, "ppb")}
-                  {renderMetricCard("CDOM", data.sensors.cdom, "ppb")}
-                  {renderMetricCard("Optical Brighteners", data.sensors.opticalBrighteners, "ppb")}
-                  {renderMetricCard("Tryptophan", data.sensors.tryptophan, "ppb")}
-                  {renderMetricCard("Refined Fuels", data.sensors.refinedFuels, "ppb")}
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <Card>
+            {data.categories.map((category) => (
+              <Card key={category.name}>
                 <CardHeader>
-                  <CardTitle>Environmental Data</CardTitle>
+                  <CardTitle>{category.name}</CardTitle>
+                  <CardDescription>
+                    {category.sensors.length} sensor{category.sensors.length > 1 ? 's' : ''}
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-2">
-                  {renderMetricCard("Dissolved Oxygen", data.sensors.dissolvedOxygen, "mg/L")}
-                  {renderMetricCard("Depth", data.sensors.depth, "m")}
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {category.sensors.map(renderSensorCard)}
+                  </div>
                 </CardContent>
               </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>System Status</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  {renderMetricCard("Battery", data.sensors.battery, "%")}
-                  {renderMetricCard("Signal Strength", data.sensors.signalStrength, "dBm")}
-                  {renderMetricCard("Data Quality", data.sensors.dataQuality, "%")}
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Location</CardTitle>
-              </CardHeader>
-              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {renderMetricCard("Latitude", data.sensors.latitude, "°")}
-                {renderMetricCard("Longitude", data.sensors.longitude, "°")}
-              </CardContent>
-            </Card>
+            ))}
 
             <p className="text-sm text-muted-foreground text-center">
               Last updated: {new Date(data.timestamp).toLocaleString()}
             </p>
           </>
+        )}
+
+        {data && data.sensors.length === 0 && (
+          <Card>
+            <CardContent className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <p className="text-muted-foreground mb-2">{data.message || 'No sensor data available'}</p>
+                <p className="text-sm text-muted-foreground">Station: {data.station.name}</p>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {!data && !loading && (

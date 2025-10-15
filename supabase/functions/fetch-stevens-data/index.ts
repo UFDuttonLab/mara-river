@@ -111,7 +111,23 @@ serve(async (req) => {
     const project = projects[0];
     const projectId = project.id;
     
-    // Extract channel IDs from widget profiles
+    // Find the specific station "Mara River Purungat Bridge" with code CF4DF9C92B33
+    const TARGET_STATION_CODE = 'CF4DF9C92B33';
+    const allStations = project.stations || [];
+    const targetStation = allStations.find((s: any) => 
+      s.code === TARGET_STATION_CODE || s.public_key === TARGET_STATION_CODE
+    );
+    
+    if (!targetStation) {
+      console.log('Available stations:', allStations.map((s: any) => ({ id: s.id, name: s.name, code: s.code })));
+      throw new Error(`Station with code ${TARGET_STATION_CODE} not found`);
+    }
+    
+    const targetStationId = targetStation.id;
+    const targetStationName = targetStation.name || 'Mara River Purungat Bridge';
+    console.log(`Found target station: ${targetStationName} (ID: ${targetStationId})`);
+    
+    // Extract channel IDs from widget profiles that belong to this station
     const widgetProfiles = project.other_widget_profiles || [];
     const channelIdsSet = new Set<number>();
     const channelMap = new Map<number, any>(); // Store channel details for later mapping
@@ -119,32 +135,36 @@ serve(async (req) => {
     console.log(`Found ${widgetProfiles.length} widget profiles`);
 
     widgetProfiles.forEach((profile: any) => {
-      const widgets = profile.widgets || [];
-      widgets.forEach((widget: any) => {
-        const widgetChannels = widget.widget_channels || [];
-        widgetChannels.forEach((wc: any) => {
-          if (wc.channel_id) {
-            channelIdsSet.add(wc.channel_id);
-            // Store channel info for mapping later
-            if (!channelMap.has(wc.channel_id)) {
-              channelMap.set(wc.channel_id, {
-                id: wc.channel_id,
-                widgetTitle: widget.chart_title
-              });
+      // Filter for profiles that match our target station (station_id === 0 means all stations)
+      if (profile.station_id === 0 || profile.station_id === targetStationId) {
+        const widgets = profile.widgets || [];
+        widgets.forEach((widget: any) => {
+          const widgetChannels = widget.widget_channels || [];
+          widgetChannels.forEach((wc: any) => {
+            if (wc.channel_id) {
+              channelIdsSet.add(wc.channel_id);
+              // Store channel info for mapping later
+              if (!channelMap.has(wc.channel_id)) {
+                channelMap.set(wc.channel_id, {
+                  id: wc.channel_id,
+                  widgetTitle: widget.chart_title,
+                  category: profile.name || 'Other'
+                });
+              }
             }
-          }
+          });
         });
-      });
+      }
     });
 
     const channelIds = Array.from(channelIdsSet);
     const channels = Array.from(channelMap.values());
 
     if (channelIds.length === 0) {
-      throw new Error('No channels found in widget profiles');
+      throw new Error('No channels found for the target station');
     }
 
-    console.log(`Found ${channelIds.length} unique channels across all widgets`);
+    console.log(`Found ${channelIds.length} unique channels for station ${targetStationName}`);
     console.log('Channel IDs:', channelIds.slice(0, 10), channelIds.length > 10 ? '...' : '');
 
     console.log('Step 3: Fetching readings data...');
@@ -155,7 +175,7 @@ serve(async (req) => {
     readingsUrl.searchParams.append('range_type', 'relative');
     readingsUrl.searchParams.append('start_date', 'null');
     readingsUrl.searchParams.append('end_date', 'null');
-    readingsUrl.searchParams.append('minutes', '1440');
+    readingsUrl.searchParams.append('minutes', '10080'); // 7 days to increase chances of finding data
     readingsUrl.searchParams.append('transformation', 'none');
     
     console.log('Requesting readings from:', readingsUrl.toString());
@@ -177,15 +197,14 @@ serve(async (req) => {
     console.log('Readings data received');
     console.log('Full readings response structure:', JSON.stringify(readingsData, null, 2).substring(0, 2000));
 
-    // Step 4: Transform data to match dashboard structure
-    const sensorData: Record<string, number | null> = {};
+    // Step 4: Transform data into structured sensor objects
     const readingsObject = readingsData.data?.readings || {};
     
     console.log('Readings object keys:', Object.keys(readingsObject));
     console.log('Channels array length:', channels.length);
 
-    // Create a map of channel_id to latest reading value
-    const channelValueMap = new Map<number, number | null>();
+    // Create a map of channel_id to latest reading
+    const channelReadingMap = new Map<number, { value: number; timestamp: string }>();
     
     // Readings is an object keyed by channel_id
     Object.entries(readingsObject).forEach(([channelId, readings]: [string, any]) => {
@@ -193,71 +212,92 @@ serve(async (req) => {
         // Get the latest reading (last item in array)
         const latestReading = readings[readings.length - 1];
         const value = latestReading?.reading ?? null;
-        channelValueMap.set(parseInt(channelId), value);
-        console.log(`Channel ${channelId}: ${value} (from ${readings.length} readings)`);
+        const timestamp = latestReading?.timestamp || latestReading?.measured_at || new Date().toISOString();
+        
+        if (value !== null) {
+          channelReadingMap.set(parseInt(channelId), { value, timestamp });
+          console.log(`Channel ${channelId}: ${value} (from ${readings.length} readings)`);
+        }
       }
     });
 
-    console.log('Channel value map size:', channelValueMap.size);
+    console.log('Channel reading map size:', channelReadingMap.size);
 
-    // Map channel data to sensor names using widget titles
+    // Build structured sensor data with metadata
+    const sensors: any[] = [];
+    const sensorsByCategory = new Map<string, any[]>();
+
     channels.forEach((channel: any) => {
-      const widgetTitle = channel.widgetTitle?.toLowerCase() || '';
-      const value = channelValueMap.get(channel.id) ?? null;
+      const reading = channelReadingMap.get(channel.id);
+      if (reading) {
+        const widgetTitle = channel.widgetTitle || 'Unknown';
+        const category = channel.category || 'Other';
+        
+        // Determine unit based on title
+        let unit = '';
+        const titleLower = widgetTitle.toLowerCase();
+        if (titleLower.includes('temperature')) unit = '°C';
+        else if (titleLower.includes('oxygen') && titleLower.includes('%')) unit = '% sat';
+        else if (titleLower.includes('oxygen')) unit = 'mg/L';
+        else if (titleLower.includes('ph')) unit = '';
+        else if (titleLower.includes('conductivity')) unit = 'µS/cm';
+        else if (titleLower.includes('turbidity')) unit = 'NTU';
+        else if (titleLower.includes('depth')) unit = 'm';
+        else if (titleLower.includes('salinity')) unit = 'PSU';
+        else if (titleLower.includes('battery')) unit = 'V';
+        else if (titleLower.includes('voltage')) unit = 'V';
 
-      // Map to dashboard field names based on widget titles
-      if (widgetTitle.includes('temperature') || widgetTitle.includes('temp')) {
-        sensorData.temperature = value;
-      } else if (widgetTitle.includes('ph') && !widgetTitle.includes('phyco')) {
-        sensorData.ph = value;
-      } else if (widgetTitle.includes('depth')) {
-        sensorData.depth = value;
-      } else if (widgetTitle.includes('conductivity') && !widgetTitle.includes('specific')) {
-        sensorData.conductivity = value;
-      } else if (widgetTitle.includes('chlorophyll') || widgetTitle.includes('chl')) {
-        sensorData.chlorophyll = value;
-      } else if (widgetTitle.includes('phycocyanin') || widgetTitle.includes('pc-')) {
-        sensorData.phycocyanin = value;
-      } else if (widgetTitle.includes('phycoerythrin') || widgetTitle.includes('pe-')) {
-        sensorData.phycoerythrin = value;
-      } else if (widgetTitle.includes('cdom') || widgetTitle.includes('fdom')) {
-        sensorData.cdom = value;
-      } else if (widgetTitle.includes('crude') || widgetTitle.includes('oil')) {
-        sensorData.crudeOil = value;
-      } else if (widgetTitle.includes('optical') || widgetTitle.includes('brightener')) {
-        sensorData.opticalBrighteners = value;
-      } else if (widgetTitle.includes('turbidity') || widgetTitle.includes('turb')) {
-        sensorData.turbidity = value;
-      } else if (widgetTitle.includes('dissolved') || widgetTitle.includes('oxygen') || widgetTitle.includes('do')) {
-        sensorData.dissolvedOxygen = value;
-      } else if (widgetTitle.includes('salinity') || widgetTitle.includes('sal')) {
-        sensorData.salinity = value;
-      } else if (widgetTitle.includes('tds')) {
-        sensorData.tds = value;
-      } else if (widgetTitle.includes('specific') && widgetTitle.includes('conductivity')) {
-        sensorData.specificConductivity = value;
-      } else if (widgetTitle.includes('resistivity') || widgetTitle.includes('resist')) {
-        sensorData.resistivity = value;
-      } else if (widgetTitle.includes('battery') || widgetTitle.includes('voltage')) {
-        sensorData.batteryVoltage = value;
-      } else if (widgetTitle.includes('wiper')) {
-        sensorData.wiperPosition = value;
-      } else if (widgetTitle.includes('latitude') || widgetTitle.includes('lat')) {
-        sensorData.latitude = value;
-      } else if (widgetTitle.includes('longitude') || widgetTitle.includes('lon')) {
-        sensorData.longitude = value;
-      } else if (widgetTitle.includes('vertical') || widgetTitle.includes('altitude')) {
-        sensorData.verticalPosition = value;
+        const sensor = {
+          id: `sensor_${channel.id}`,
+          name: widgetTitle,
+          value: reading.value,
+          unit,
+          timestamp: reading.timestamp,
+          category
+        };
+
+        sensors.push(sensor);
+        
+        if (!sensorsByCategory.has(category)) {
+          sensorsByCategory.set(category, []);
+        }
+        sensorsByCategory.get(category)!.push(sensor);
       }
     });
 
-    console.log('Transformed sensor data:', sensorData);
+    console.log('Transformed sensors:', sensors);
+    console.log('Sensors by category:', Array.from(sensorsByCategory.keys()));
     console.log('Data fetch complete');
 
-    // Return data in the format the frontend expects
+    if (sensors.length === 0) {
+      return new Response(JSON.stringify({ 
+        data: {
+          station: {
+            name: targetStationName,
+            id: TARGET_STATION_CODE
+          },
+          sensors: [],
+          categories: [],
+          timestamp: new Date().toISOString(),
+          message: 'No data available for the past 7 days. Please check if sensors are active.'
+        }
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Return structured data with station info and sensors grouped by category
     return new Response(JSON.stringify({ 
       data: {
-        sensors: sensorData,
+        station: {
+          name: targetStationName,
+          id: TARGET_STATION_CODE
+        },
+        sensors,
+        categories: Array.from(sensorsByCategory.entries()).map(([name, sensors]) => ({
+          name,
+          sensors
+        })),
         timestamp: new Date().toISOString()
       }
     }), {

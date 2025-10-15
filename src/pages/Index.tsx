@@ -4,19 +4,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+
+interface Reading {
+  timestamp: string;
+  value: number;
+}
 
 interface Sensor {
   id: string;
   name: string;
-  value: number;
   unit: string;
-  timestamp: string;
   category: string;
-}
-
-interface Category {
-  name: string;
-  sensors: Sensor[];
+  currentValue: number;
+  currentTimestamp: string;
+  readings: Reading[];
 }
 
 interface DashboardData {
@@ -25,7 +27,6 @@ interface DashboardData {
     id: string;
   };
   sensors: Sensor[];
-  categories: Category[];
   timestamp: string;
   message?: string;
 }
@@ -72,21 +73,59 @@ const Index = () => {
     fetchData();
   }, []);
 
-  const renderSensorCard = (sensor: Sensor) => (
-    <Card key={sensor.id}>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">{sensor.name}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">
-          {sensor.value.toFixed(2)} {sensor.unit}
-        </div>
-        <p className="text-xs text-muted-foreground mt-1">
-          {new Date(sensor.timestamp).toLocaleString()}
-        </p>
-      </CardContent>
-    </Card>
-  );
+  const renderSensorChart = (sensor: Sensor) => {
+    // Transform readings for recharts
+    const chartData = sensor.readings.map(r => ({
+      time: new Date(r.timestamp).toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric',
+        hour: '2-digit'
+      }),
+      value: r.value
+    }));
+
+    return (
+      <Card key={sensor.id} className="col-span-full">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>{sensor.name}</span>
+            <span className="text-2xl font-bold text-primary">
+              {sensor.currentValue.toFixed(2)} {sensor.unit}
+            </span>
+          </CardTitle>
+          <CardDescription>
+            Last 7 days • Last updated: {new Date(sensor.currentTimestamp).toLocaleString()}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="time" 
+                tick={{ fontSize: 12 }}
+                interval="preserveStartEnd"
+              />
+              <YAxis 
+                label={{ value: sensor.unit, angle: -90, position: 'insideLeft' }}
+                tick={{ fontSize: 12 }}
+              />
+              <Tooltip 
+                formatter={(value: number) => [`${value.toFixed(2)} ${sensor.unit}`, sensor.name]}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="value" 
+                stroke="hsl(var(--primary))" 
+                strokeWidth={2}
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -112,21 +151,9 @@ const Index = () => {
 
         {data && data.sensors.length > 0 && (
           <>
-            {data.categories.map((category) => (
-              <Card key={category.name}>
-                <CardHeader>
-                  <CardTitle>{category.name}</CardTitle>
-                  <CardDescription>
-                    {category.sensors.length} sensor{category.sensors.length > 1 ? 's' : ''}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {category.sensors.map(renderSensorCard)}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            <div className="space-y-4">
+              {data.sensors.map(renderSensorChart)}
+            </div>
 
             <p className="text-sm text-muted-foreground text-center">
               Last updated: {new Date(data.timestamp).toLocaleString()}

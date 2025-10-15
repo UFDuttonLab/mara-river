@@ -161,13 +161,17 @@ serve(async (req) => {
     const activeChannels = stationChannels.filter((ch: any) => ch.sensor_status === 1);
     console.log(`Active channels: ${activeChannels.length}`);
 
+    // Filter for M 20 sensors only
+    const m20Channels = activeChannels.filter((ch: any) => ch.sensor_name === "M 20");
+    console.log(`Filtered to ${m20Channels.length} M 20 channels`);
+
     // Get units dictionary from config packet
     const units = configData.data?.config_packet?.units || [];
     const unitMap = new Map(units.map((u: any) => [u.id, u.unit]));
 
-    // Build channel map with proper metadata
+    // Build channel map with proper metadata (M 20 only)
     const channelMap = new Map<number, any>();
-    activeChannels.forEach((ch: any) => {
+    m20Channels.forEach((ch: any) => {
       channelMap.set(ch.id, {
         id: ch.id,
         name: ch.name, // e.g., "Cable Power (V)", "SC (uS)"
@@ -224,53 +228,52 @@ serve(async (req) => {
     console.log('Readings object keys:', Object.keys(readingsObject));
     console.log('Channels array length:', channels.length);
 
-    // Create a map of channel_id to latest reading
-    const channelReadingMap = new Map<number, { value: number; timestamp: string }>();
+    // Create a map of channel_id to full readings array
+    const channelReadingsMap = new Map<number, Array<{ timestamp: string; value: number }>>();
     
     // Readings is an object keyed by channel_id
     Object.entries(readingsObject).forEach(([channelId, readings]: [string, any]) => {
       if (Array.isArray(readings) && readings.length > 0) {
-        // Get the latest reading (last item in array)
-        const latestReading = readings[readings.length - 1];
-        const value = latestReading?.reading ?? null;
-        const timestamp = latestReading?.timestamp || latestReading?.measured_at || new Date().toISOString();
-        
-        if (value !== null) {
-          channelReadingMap.set(parseInt(channelId), { value, timestamp });
-          console.log(`Channel ${channelId}: ${value} (from ${readings.length} readings)`);
-        }
+        const parsedReadings = readings.map((r: any) => ({
+          timestamp: r.timestamp || r.measured_at || new Date().toISOString(),
+          value: parseFloat(r.reading)
+        }));
+        channelReadingsMap.set(parseInt(channelId), parsedReadings);
+        console.log(`Channel ${channelId}: ${parsedReadings[parsedReadings.length - 1].value} (from ${readings.length} readings)`);
       }
     });
 
-    console.log('Channel reading map size:', channelReadingMap.size);
+    console.log('Channel reading map size:', channelReadingsMap.size);
 
     // Build structured sensor data with metadata
     const sensors: any[] = [];
     const sensorsByCategory = new Map<string, any[]>();
 
     channels.forEach((channel: any) => {
-      const reading = channelReadingMap.get(channel.id);
-      if (reading) {
-        const sensorName = channel.name || 'Unknown'; // e.g., "Cable Power (V)"
-        const category = channel.category || 'Other'; // e.g., "M20"
-        const unit = channel.unit || ''; // Use unit from channel metadata
-        const precision = channel.precision || 2;
-
+      const readings = channelReadingsMap.get(channel.id);
+      if (readings && readings.length > 0) {
+        // Get latest reading for current value
+        const latestReading = readings[readings.length - 1];
+        
         const sensor = {
           id: `sensor_${channel.id}`,
-          name: sensorName,
-          value: parseFloat(reading.value.toFixed(precision)),
-          unit,
-          timestamp: reading.timestamp,
-          category
+          name: channel.name,
+          unit: channel.unit,
+          category: channel.category,
+          currentValue: parseFloat(latestReading.value.toFixed(channel.precision)),
+          currentTimestamp: latestReading.timestamp,
+          readings: readings.map(r => ({
+            timestamp: r.timestamp,
+            value: parseFloat(r.value.toFixed(channel.precision))
+          }))
         };
 
         sensors.push(sensor);
         
-        if (!sensorsByCategory.has(category)) {
-          sensorsByCategory.set(category, []);
+        if (!sensorsByCategory.has(channel.category)) {
+          sensorsByCategory.set(channel.category, []);
         }
-        sensorsByCategory.get(category)!.push(sensor);
+        sensorsByCategory.get(channel.category)!.push(sensor);
       }
     });
 

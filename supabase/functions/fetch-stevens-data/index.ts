@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const BASE_URL = 'https://api.stevens-connect.com';
+const BASE_URL = 'https://api.mantalink.com';
 
 // Channel ID to sensor name mapping for Manta sensors
 const CHANNEL_MAP: Record<string, string> = {
@@ -46,7 +46,7 @@ serve(async (req) => {
       throw new Error('Missing Stevens credentials');
     }
 
-    console.log('Step 1: Authenticating with Stevens-Connect API...');
+    console.log('Step 1: Authenticating with Mantalink API...');
 
     // Step 1: Authenticate using form data
     const authBody = new URLSearchParams();

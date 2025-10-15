@@ -116,15 +116,31 @@ serve(async (req) => {
       throw new Error('No stations found in project');
     }
 
-    // Find Manta station and collect all channel IDs
-    const mantaStation = stations.find((s: any) => 
-      s.name?.toLowerCase().includes('manta') || s.channels?.length > 15
-    ) || stations[0];
+    // Log all available stations for debugging
+    console.log(`Found ${stations.length} stations in project`);
+    stations.forEach((s: any, index: number) => {
+      console.log(`Station ${index + 1}: "${s.name}" - ${s.channels?.length || 0} channels`);
+    });
 
-    const channels = mantaStation.channels || [];
+    // Find station with the most channels (likely the Manta sensor)
+    const mantaStation = stations.reduce((best: any, current: any) => {
+      const currentChannels = current.channels?.length || 0;
+      const bestChannels = best?.channels?.length || 0;
+      return currentChannels > bestChannels ? current : best;
+    }, null);
+
+    if (!mantaStation || !mantaStation.channels || mantaStation.channels.length === 0) {
+      throw new Error(
+        `No station with channels found. Available stations: ${stations.map((s: any) => 
+          `"${s.name}" (${s.channels?.length || 0} channels)`
+        ).join(', ')}`
+      );
+    }
+
+    const channels = mantaStation.channels;
     const channelIds = channels.map((ch: any) => ch.id);
-    
-    console.log(`Found ${channelIds.length} channels in station "${mantaStation.name}"`);
+
+    console.log(`Selected station: "${mantaStation.name}" with ${channelIds.length} channels`);
     console.log('Channel IDs:', channelIds);
 
     console.log('Step 3: Fetching readings data...');

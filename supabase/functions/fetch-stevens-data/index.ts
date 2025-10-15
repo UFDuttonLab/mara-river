@@ -153,7 +153,7 @@ serve(async (req) => {
     const readingsUrl = new URL(`${BASE_URL}/project/${projectId}/readings`);
     channelIds.forEach((id: number) => readingsUrl.searchParams.append('channel_id', id.toString()));
     readingsUrl.searchParams.append('range_type', 'relative');
-    readingsUrl.searchParams.append('minutes', '60'); // Last 60 minutes
+    readingsUrl.searchParams.append('minutes', '1440'); // Last 24 hours to ensure we get data
 
     const readingsResponse = await fetch(readingsUrl.toString(), {
       method: 'GET',
@@ -174,19 +174,31 @@ serve(async (req) => {
 
     // Step 4: Transform data to match dashboard structure
     const sensorData: Record<string, number | null> = {};
-    const channelReadings = readingsData.data?.channels || [];
+    const allReadings = readingsData.data?.readings || [];
     
-    console.log('Channel readings array length:', channelReadings.length);
+    console.log('Readings array length:', allReadings.length);
     console.log('Channels array length:', channels.length);
 
-    // Map channel data to sensor names using widget titles
-    channels.forEach((channel: any, index: number) => {
-      const widgetTitle = channel.widgetTitle?.toLowerCase() || '';
-      const readings = channelReadings[index]?.readings || [];
+    // Create a map of channel_id to latest reading value
+    const channelValueMap = new Map<number, number | null>();
+    
+    allReadings.forEach((reading: any) => {
+      const channelId = reading.channel_id;
+      const value = reading.value ?? null;
+      const timestamp = reading.timestamp || reading.measured_at;
       
-      // Get the latest reading
-      const latestReading = readings.length > 0 ? readings[readings.length - 1] : null;
-      const value = latestReading?.value ?? null;
+      // Keep the latest value for each channel
+      if (!channelValueMap.has(channelId) || timestamp > (channelValueMap.get(channelId) as any)?.timestamp) {
+        channelValueMap.set(channelId, value);
+      }
+    });
+
+    console.log('Channel value map size:', channelValueMap.size);
+
+    // Map channel data to sensor names using widget titles
+    channels.forEach((channel: any) => {
+      const widgetTitle = channel.widgetTitle?.toLowerCase() || '';
+      const value = channelValueMap.get(channel.id) ?? null;
 
       // Map to dashboard field names based on widget titles
       if (widgetTitle.includes('temperature') || widgetTitle.includes('temp')) {

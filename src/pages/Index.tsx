@@ -74,6 +74,11 @@ const Index = () => {
   }, []);
 
   const renderSensorChart = (sensor: Sensor) => {
+    // Safety check for readings array
+    if (!sensor.readings || sensor.readings.length === 0) {
+      return null;
+    }
+
     // Transform readings for recharts
     const chartData = sensor.readings.map(r => ({
       time: new Date(r.timestamp).toLocaleDateString('en-US', { 

@@ -128,37 +128,54 @@ serve(async (req) => {
     const targetStationName = targetStation.name;
     console.log(`Found target station: ${targetStationName} (ID: ${targetStationId}, Code: CF4DF9C92B33)`);
     
-    // Extract channel IDs from widget profiles that belong to this station
-    const widgetProfiles = project.other_widget_profiles || [];
-    const channelIdsSet = new Set<number>();
-    const channelMap = new Map<number, any>(); // Store channel details for later mapping
-
-    console.log(`Found ${widgetProfiles.length} widget profiles`);
-
-    widgetProfiles.forEach((profile: any) => {
-      // Filter for profiles that match our target station (station_id === 0 means all stations)
-      if (profile.station_id === 0 || profile.station_id === targetStationId) {
-        const widgets = profile.widgets || [];
-        widgets.forEach((widget: any) => {
-          const widgetChannels = widget.widget_channels || [];
-          widgetChannels.forEach((wc: any) => {
-            if (wc.channel_id) {
-              channelIdsSet.add(wc.channel_id);
-              // Store channel info for mapping later
-              if (!channelMap.has(wc.channel_id)) {
-                channelMap.set(wc.channel_id, {
-                  id: wc.channel_id,
-                  widgetTitle: widget.chart_title,
-                  category: profile.name || 'Other'
-                });
-              }
-            }
-          });
-        });
-      }
+    // Step 2.5: Fetch station-specific channels from the dedicated API endpoint
+    console.log('Step 2.5: Fetching station channels...');
+    const channelsUrl = `${BASE_URL}/project/${projectId}/config/channels?station_id=${targetStationId}`;
+    const channelsResponse = await fetch(channelsUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
     });
 
-    const channelIds = Array.from(channelIdsSet);
+    if (!channelsResponse.ok) {
+      const errorText = await channelsResponse.text();
+      console.error('Channels fetch failed:', errorText);
+      throw new Error(`Channels fetch failed: ${channelsResponse.status}`);
+    }
+
+    const channelsData = await channelsResponse.json();
+    console.log('Channels data received:', JSON.stringify(channelsData, null, 2).substring(0, 1000));
+    
+    // Extract station channels (these are the actual sensor data channels)
+    const stationChannels = channelsData.data?.channels || [];
+    console.log(`Found ${stationChannels.length} station channels`);
+    console.log('Sample channels:', stationChannels.slice(0, 5).map((ch: any) => ({
+      id: ch.id,
+      name: ch.name,
+      sensor: ch.sensor_name,
+      status: ch.status,
+      unit: ch.unit
+    })));
+    
+    // Filter for active channels only
+    const activeChannels = stationChannels.filter((ch: any) => ch.status === 1);
+    console.log(`Active channels: ${activeChannels.length}`);
+    
+    // Build channel map with proper metadata
+    const channelMap = new Map<number, any>();
+    activeChannels.forEach((ch: any) => {
+      channelMap.set(ch.id, {
+        id: ch.id,
+        name: ch.name, // e.g., "Cable Power (V)", "SC (uS)"
+        sensorName: ch.sensor_name || 'Unknown Sensor', // e.g., "M20"
+        unit: ch.unit || '',
+        precision: ch.precision || 2,
+        category: ch.sensor_name || 'Other Sensors'
+      });
+    });
+
+    const channelIds = Array.from(channelMap.keys());
     const channels = Array.from(channelMap.values());
 
     if (channelIds.length === 0) {
@@ -231,27 +248,15 @@ serve(async (req) => {
     channels.forEach((channel: any) => {
       const reading = channelReadingMap.get(channel.id);
       if (reading) {
-        const widgetTitle = channel.widgetTitle || 'Unknown';
-        const category = channel.category || 'Other';
-        
-        // Determine unit based on title
-        let unit = '';
-        const titleLower = widgetTitle.toLowerCase();
-        if (titleLower.includes('temperature')) unit = '°C';
-        else if (titleLower.includes('oxygen') && titleLower.includes('%')) unit = '% sat';
-        else if (titleLower.includes('oxygen')) unit = 'mg/L';
-        else if (titleLower.includes('ph')) unit = '';
-        else if (titleLower.includes('conductivity')) unit = 'µS/cm';
-        else if (titleLower.includes('turbidity')) unit = 'NTU';
-        else if (titleLower.includes('depth')) unit = 'm';
-        else if (titleLower.includes('salinity')) unit = 'PSU';
-        else if (titleLower.includes('battery')) unit = 'V';
-        else if (titleLower.includes('voltage')) unit = 'V';
+        const sensorName = channel.name || 'Unknown'; // e.g., "Cable Power (V)"
+        const category = channel.category || 'Other'; // e.g., "M20"
+        const unit = channel.unit || ''; // Use unit from channel metadata
+        const precision = channel.precision || 2;
 
         const sensor = {
           id: `sensor_${channel.id}`,
-          name: widgetTitle,
-          value: reading.value,
+          name: sensorName,
+          value: parseFloat(reading.value.toFixed(precision)),
           unit,
           timestamp: reading.timestamp,
           category

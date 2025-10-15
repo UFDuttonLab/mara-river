@@ -32,9 +32,15 @@ interface DashboardData {
   message?: string;
 }
 
+interface ReconoxyPhoto {
+  storage_url: string;
+  scraped_at: string;
+}
+
 const Index = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [latestPhoto, setLatestPhoto] = useState<ReconoxyPhoto | null>(null);
   const { toast } = useToast();
 
   const fetchData = async () => {
@@ -70,8 +76,49 @@ const Index = () => {
     }
   };
 
+  const fetchLatestPhoto = async () => {
+    try {
+      const { data: photoData, error } = await supabase
+        .from('reconyx_photos')
+        .select('storage_url, scraped_at')
+        .order('scraped_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (photoData && !error) {
+        setLatestPhoto(photoData);
+      }
+    } catch (error) {
+      console.error('Error fetching latest photo:', error);
+    }
+  };
+
   useEffect(() => {
     fetchData();
+    fetchLatestPhoto();
+
+    // Subscribe to new photos
+    const channel = supabase
+      .channel('reconyx-photos')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'reconyx_photos'
+        },
+        (payload) => {
+          setLatestPhoto({
+            storage_url: payload.new.storage_url,
+            scraped_at: payload.new.scraped_at,
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const renderSensorChart = (sensor: Sensor) => {
@@ -133,6 +180,31 @@ const Index = () => {
     );
   };
 
+  const renderLatestPhoto = () => {
+    if (!latestPhoto) return null;
+
+    return (
+      <Card className="col-span-full">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <span className="text-2xl">📷</span>
+            Latest River Camera Photo
+          </CardTitle>
+          <CardDescription>
+            Captured: {new Date(latestPhoto.scraped_at).toLocaleString()}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <img 
+            src={latestPhoto.storage_url} 
+            alt="Latest river camera photo"
+            className="w-full rounded-lg shadow-lg"
+          />
+        </CardContent>
+      </Card>
+    );
+  };
+
   const renderAnalysis = (analysis: string) => {
     if (!analysis) return null;
 
@@ -187,6 +259,7 @@ const Index = () => {
         {data && data.sensors.length > 0 && (
           <>
             {data.analysis && renderAnalysis(data.analysis)}
+            {latestPhoto && renderLatestPhoto()}
             
             <div className="space-y-4 mt-6">
               {data.sensors.map(renderSensorChart)}

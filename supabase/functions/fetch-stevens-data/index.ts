@@ -153,8 +153,7 @@ serve(async (req) => {
     const readingsUrl = new URL(`${BASE_URL}/project/${projectId}/readings`);
     channelIds.forEach((id: number) => readingsUrl.searchParams.append('channel_id', id.toString()));
     readingsUrl.searchParams.append('range_type', 'relative');
-    readingsUrl.searchParams.append('relative', '60'); // Last 60 minutes
-    readingsUrl.searchParams.append('relative_unit', 'minutes');
+    readingsUrl.searchParams.append('minutes', '60'); // Last 60 minutes
 
     const readingsResponse = await fetch(readingsUrl.toString(), {
       method: 'GET',

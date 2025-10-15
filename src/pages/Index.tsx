@@ -65,14 +65,14 @@ const Index = () => {
     fetchData();
   }, []);
 
-  const renderMetricCard = (title: string, value: number | undefined, unit: string) => (
+  const renderMetricCard = (title: string, value: number | undefined | null, unit: string) => (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">
-          {value !== undefined ? `${value.toFixed(2)} ${unit}` : 'N/A'}
+          {value != null ? `${value.toFixed(2)} ${unit}` : 'N/A'}
         </div>
       </CardContent>
     </Card>

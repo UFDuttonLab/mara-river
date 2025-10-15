@@ -111,21 +111,22 @@ serve(async (req) => {
     const project = projects[0];
     const projectId = project.id;
     
-    // Find the specific station "Mara River Purungat Bridge" with code CF4DF9C92B33
-    const TARGET_STATION_CODE = 'CF4DF9C92B33';
+    // Find the specific station "Mara River Purungat Bridge"
+    // Note: CF4DF9C92B33 is the station identifier but not returned in config packet
+    const TARGET_STATION_NAME = 'Mara River Purungat Bridge';
     const allStations = project.stations || [];
     const targetStation = allStations.find((s: any) => 
-      s.code === TARGET_STATION_CODE || s.public_key === TARGET_STATION_CODE
+      s.name === TARGET_STATION_NAME
     );
     
     if (!targetStation) {
       console.log('Available stations:', allStations.map((s: any) => ({ id: s.id, name: s.name, code: s.code })));
-      throw new Error(`Station with code ${TARGET_STATION_CODE} not found`);
+      throw new Error(`Station "${TARGET_STATION_NAME}" not found in project`);
     }
     
     const targetStationId = targetStation.id;
-    const targetStationName = targetStation.name || 'Mara River Purungat Bridge';
-    console.log(`Found target station: ${targetStationName} (ID: ${targetStationId})`);
+    const targetStationName = targetStation.name;
+    console.log(`Found target station: ${targetStationName} (ID: ${targetStationId}, Code: CF4DF9C92B33)`);
     
     // Extract channel IDs from widget profiles that belong to this station
     const widgetProfiles = project.other_widget_profiles || [];
@@ -274,7 +275,8 @@ serve(async (req) => {
         data: {
           station: {
             name: targetStationName,
-            id: TARGET_STATION_CODE
+            id: targetStationId,
+            code: 'CF4DF9C92B33'
           },
           sensors: [],
           categories: [],
@@ -291,7 +293,8 @@ serve(async (req) => {
       data: {
         station: {
           name: targetStationName,
-          id: TARGET_STATION_CODE
+          id: targetStationId,
+          code: 'CF4DF9C92B33'
         },
         sensors,
         categories: Array.from(sensorsByCategory.entries()).map(([name, sensors]) => ({

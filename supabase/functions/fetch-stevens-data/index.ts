@@ -110,44 +110,48 @@ serve(async (req) => {
 
     const project = projects[0];
     const projectId = project.id;
-    const stations = project.stations || [];
     
-    if (stations.length === 0) {
-      throw new Error('No stations found in project');
-    }
+    // Extract channel IDs from widget profiles
+    const widgetProfiles = project.other_widget_profiles || [];
+    const channelIdsSet = new Set<number>();
+    const channelMap = new Map<number, any>(); // Store channel details for later mapping
 
-    // Log all available stations for debugging
-    console.log(`Found ${stations.length} stations in project`);
-    stations.forEach((s: any, index: number) => {
-      console.log(`Station ${index + 1}: "${s.name}" - ${s.channels?.length || 0} channels`);
+    console.log(`Found ${widgetProfiles.length} widget profiles`);
+
+    widgetProfiles.forEach((profile: any) => {
+      const widgets = profile.widgets || [];
+      widgets.forEach((widget: any) => {
+        const widgetChannels = widget.widget_channels || [];
+        widgetChannels.forEach((wc: any) => {
+          if (wc.channel_id) {
+            channelIdsSet.add(wc.channel_id);
+            // Store channel info for mapping later
+            if (!channelMap.has(wc.channel_id)) {
+              channelMap.set(wc.channel_id, {
+                id: wc.channel_id,
+                widgetTitle: widget.chart_title
+              });
+            }
+          }
+        });
+      });
     });
 
-    // Find station with the most channels (likely the Manta sensor)
-    const mantaStation = stations.reduce((best: any, current: any) => {
-      const currentChannels = current.channels?.length || 0;
-      const bestChannels = best?.channels?.length || 0;
-      return currentChannels > bestChannels ? current : best;
-    }, null);
+    const channelIds = Array.from(channelIdsSet);
+    const channels = Array.from(channelMap.values());
 
-    if (!mantaStation || !mantaStation.channels || mantaStation.channels.length === 0) {
-      throw new Error(
-        `No station with channels found. Available stations: ${stations.map((s: any) => 
-          `"${s.name}" (${s.channels?.length || 0} channels)`
-        ).join(', ')}`
-      );
+    if (channelIds.length === 0) {
+      throw new Error('No channels found in widget profiles');
     }
 
-    const channels = mantaStation.channels;
-    const channelIds = channels.map((ch: any) => ch.id);
-
-    console.log(`Selected station: "${mantaStation.name}" with ${channelIds.length} channels`);
-    console.log('Channel IDs:', channelIds);
+    console.log(`Found ${channelIds.length} unique channels across all widgets`);
+    console.log('Channel IDs:', channelIds.slice(0, 10), channelIds.length > 10 ? '...' : '');
 
     console.log('Step 3: Fetching readings data...');
 
     // Step 3: Fetch readings for all channels
     const readingsUrl = new URL(`${BASE_URL}/project/${projectId}/readings`);
-    channelIds.forEach((id: string) => readingsUrl.searchParams.append('channel_id', id));
+    channelIds.forEach((id: number) => readingsUrl.searchParams.append('channel_id', id.toString()));
     readingsUrl.searchParams.append('relative', '60'); // Last 60 minutes
     readingsUrl.searchParams.append('relative_unit', 'minutes');
 
@@ -171,57 +175,57 @@ serve(async (req) => {
     const sensorData: Record<string, number | null> = {};
     const channelReadings = readingsData.data?.channels || [];
 
-    // Map channel data to sensor names
+    // Map channel data to sensor names using widget titles
     channels.forEach((channel: any, index: number) => {
-      const channelName = channel.name?.toLowerCase().replace(/\s+/g, '_');
+      const widgetTitle = channel.widgetTitle?.toLowerCase() || '';
       const readings = channelReadings[index]?.readings || [];
       
       // Get the latest reading
       const latestReading = readings.length > 0 ? readings[readings.length - 1] : null;
       const value = latestReading?.value ?? null;
 
-      // Map to dashboard field names
-      if (channelName?.includes('temperature') || channelName?.includes('temp')) {
+      // Map to dashboard field names based on widget titles
+      if (widgetTitle.includes('temperature') || widgetTitle.includes('temp')) {
         sensorData.temperature = value;
-      } else if (channelName?.includes('ph')) {
+      } else if (widgetTitle.includes('ph') && !widgetTitle.includes('phyco')) {
         sensorData.ph = value;
-      } else if (channelName?.includes('depth')) {
+      } else if (widgetTitle.includes('depth')) {
         sensorData.depth = value;
-      } else if (channelName?.includes('conductivity') && !channelName?.includes('specific')) {
+      } else if (widgetTitle.includes('conductivity') && !widgetTitle.includes('specific')) {
         sensorData.conductivity = value;
-      } else if (channelName?.includes('chlorophyll') || channelName?.includes('chl')) {
+      } else if (widgetTitle.includes('chlorophyll') || widgetTitle.includes('chl')) {
         sensorData.chlorophyll = value;
-      } else if (channelName?.includes('phycocyanin') || channelName?.includes('pc')) {
+      } else if (widgetTitle.includes('phycocyanin') || widgetTitle.includes('pc-')) {
         sensorData.phycocyanin = value;
-      } else if (channelName?.includes('phycoerythrin') || channelName?.includes('pe')) {
+      } else if (widgetTitle.includes('phycoerythrin') || widgetTitle.includes('pe-')) {
         sensorData.phycoerythrin = value;
-      } else if (channelName?.includes('cdom') || channelName?.includes('fdom')) {
+      } else if (widgetTitle.includes('cdom') || widgetTitle.includes('fdom')) {
         sensorData.cdom = value;
-      } else if (channelName?.includes('crude') || channelName?.includes('oil')) {
+      } else if (widgetTitle.includes('crude') || widgetTitle.includes('oil')) {
         sensorData.crudeOil = value;
-      } else if (channelName?.includes('optical') || channelName?.includes('brightener')) {
+      } else if (widgetTitle.includes('optical') || widgetTitle.includes('brightener')) {
         sensorData.opticalBrighteners = value;
-      } else if (channelName?.includes('turbidity') || channelName?.includes('turb')) {
+      } else if (widgetTitle.includes('turbidity') || widgetTitle.includes('turb')) {
         sensorData.turbidity = value;
-      } else if (channelName?.includes('dissolved') || channelName?.includes('do')) {
+      } else if (widgetTitle.includes('dissolved') || widgetTitle.includes('oxygen') || widgetTitle.includes('do')) {
         sensorData.dissolvedOxygen = value;
-      } else if (channelName?.includes('salinity') || channelName?.includes('sal')) {
+      } else if (widgetTitle.includes('salinity') || widgetTitle.includes('sal')) {
         sensorData.salinity = value;
-      } else if (channelName?.includes('tds')) {
+      } else if (widgetTitle.includes('tds')) {
         sensorData.tds = value;
-      } else if (channelName?.includes('specific') && channelName?.includes('conductivity')) {
+      } else if (widgetTitle.includes('specific') && widgetTitle.includes('conductivity')) {
         sensorData.specificConductivity = value;
-      } else if (channelName?.includes('resistivity') || channelName?.includes('resist')) {
+      } else if (widgetTitle.includes('resistivity') || widgetTitle.includes('resist')) {
         sensorData.resistivity = value;
-      } else if (channelName?.includes('battery') || channelName?.includes('voltage')) {
+      } else if (widgetTitle.includes('battery') || widgetTitle.includes('voltage')) {
         sensorData.batteryVoltage = value;
-      } else if (channelName?.includes('wiper')) {
+      } else if (widgetTitle.includes('wiper')) {
         sensorData.wiperPosition = value;
-      } else if (channelName?.includes('latitude') || channelName?.includes('lat')) {
+      } else if (widgetTitle.includes('latitude') || widgetTitle.includes('lat')) {
         sensorData.latitude = value;
-      } else if (channelName?.includes('longitude') || channelName?.includes('lon')) {
+      } else if (widgetTitle.includes('longitude') || widgetTitle.includes('lon')) {
         sensorData.longitude = value;
-      } else if (channelName?.includes('vertical') || channelName?.includes('altitude')) {
+      } else if (widgetTitle.includes('vertical') || widgetTitle.includes('altitude')) {
         sensorData.verticalPosition = value;
       }
     });

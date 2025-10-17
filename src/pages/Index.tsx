@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw, Languages } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import {
@@ -12,6 +12,13 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Reading {
   timestamp: string;
@@ -88,18 +95,31 @@ const Index = () => {
     }
   };
 
-  const cycleLanguage = () => {
-    const languages: Language[] = ['english', 'swahili', 'maa'];
-    const currentIndex = languages.indexOf(language);
-    const nextLanguage = languages[(currentIndex + 1) % languages.length];
-    setLanguage(nextLanguage);
-  };
-
-  const getLanguageDisplay = () => {
-    switch(language) {
-      case 'english': return 'English';
-      case 'swahili': return 'Kiswahili';
-      case 'maa': return 'Maa';
+  const handleLanguageChange = async (newLanguage: Language) => {
+    setLanguage(newLanguage);
+    // Trigger immediate data refresh with new language
+    setLoading(true);
+    try {
+      const { data: responseData, error } = await supabase.functions.invoke('fetch-stevens-data', {
+        body: { language: newLanguage }
+      });
+      
+      if (error) throw error;
+      setData(responseData.data);
+      
+      toast({
+        title: "Language Updated",
+        description: `Analysis updated to ${newLanguage === 'english' ? 'English' : newLanguage === 'swahili' ? 'Kiswahili' : 'Maa'}`,
+      });
+    } catch (error) {
+      console.error('Error updating language:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update language",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -146,7 +166,7 @@ const Index = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [language]); // Refetch when language changes
+  }, []); // Remove language dependency as it's handled by handleLanguageChange
 
   const renderSensorChart = (sensor: Sensor) => {
     // Safety check for readings array
@@ -261,42 +281,9 @@ const Index = () => {
     return 'Normal';
   };
 
-  const parseAnalysisIntoSections = (analysis: string) => {
-    const sections = {
-      temperature: '',
-      dissolvedOxygen: '',
-      flow: '',
-      chemistry: '',
-      overall: ''
-    };
-
-    const lines = analysis.split('\n');
-    let currentSection = 'overall';
-
-    lines.forEach(line => {
-      const lowerLine = line.toLowerCase();
-      if (lowerLine.includes('temperature') || lowerLine.includes('thermal')) {
-        currentSection = 'temperature';
-      } else if (lowerLine.includes('oxygen') || lowerLine.includes('do ')) {
-        currentSection = 'dissolvedOxygen';
-      } else if (lowerLine.includes('flow') || lowerLine.includes('discharge')) {
-        currentSection = 'flow';
-      } else if (lowerLine.includes('ph') || lowerLine.includes('chemistry') || lowerLine.includes('turbidity')) {
-        currentSection = 'chemistry';
-      }
-      
-      if (line.trim()) {
-        sections[currentSection as keyof typeof sections] += line + '\n';
-      }
-    });
-
-    return sections;
-  };
-
   const renderAnalysis = (analysis: string) => {
     if (!analysis) return null;
 
-    const sections = parseAnalysisIntoSections(analysis);
     const doSensor = data?.sensors.find(s => s.name.toLowerCase().includes('do'));
     const phSensor = data?.sensors.find(s => s.name.toLowerCase().includes('ph'));
 
@@ -308,18 +295,19 @@ const Index = () => {
               <span className="text-2xl">🌊</span>
               <CardTitle>River Health Analysis</CardTitle>
             </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={cycleLanguage}
-              className="gap-2"
-            >
-              <Languages className="h-4 w-4" />
-              {getLanguageDisplay()}
-            </Button>
+            <Select value={language} onValueChange={handleLanguageChange}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="english">English</SelectItem>
+                <SelectItem value="swahili">Kiswahili</SelectItem>
+                <SelectItem value="maa">Maa</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <CardDescription>
-            AI-powered interpretation of this week&apos;s water quality data
+            AI-powered water quality insights
           </CardDescription>
           
           {/* Critical Metrics Overview */}
@@ -347,82 +335,11 @@ const Index = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <Accordion type="single" collapsible className="w-full">
-            {sections.temperature && (
-              <AccordionItem value="temperature">
-                <AccordionTrigger className="text-lg font-semibold">
-                  🌡️ Temperature
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="prose prose-sm max-w-none dark:prose-invert">
-                    {sections.temperature.split('\n').map((line, idx) => 
-                      line.trim() && <p key={idx} className="mb-2 leading-relaxed">{line}</p>
-                    )}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
+          <div className="prose prose-sm max-w-none dark:prose-invert leading-relaxed">
+            {analysis.split('\n\n').map((paragraph, idx) => 
+              paragraph.trim() && <p key={idx} className="mb-4">{paragraph}</p>
             )}
-            
-            {sections.dissolvedOxygen && (
-              <AccordionItem value="oxygen">
-                <AccordionTrigger className="text-lg font-semibold">
-                  💨 Dissolved Oxygen
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="prose prose-sm max-w-none dark:prose-invert">
-                    {sections.dissolvedOxygen.split('\n').map((line, idx) => 
-                      line.trim() && <p key={idx} className="mb-2 leading-relaxed">{line}</p>
-                    )}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            )}
-            
-            {sections.flow && (
-              <AccordionItem value="flow">
-                <AccordionTrigger className="text-lg font-semibold">
-                  🌊 Flow & Discharge
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="prose prose-sm max-w-none dark:prose-invert">
-                    {sections.flow.split('\n').map((line, idx) => 
-                      line.trim() && <p key={idx} className="mb-2 leading-relaxed">{line}</p>
-                    )}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            )}
-            
-            {sections.chemistry && (
-              <AccordionItem value="chemistry">
-                <AccordionTrigger className="text-lg font-semibold">
-                  🧪 Chemistry & pH
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="prose prose-sm max-w-none dark:prose-invert">
-                    {sections.chemistry.split('\n').map((line, idx) => 
-                      line.trim() && <p key={idx} className="mb-2 leading-relaxed">{line}</p>
-                    )}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            )}
-            
-            {sections.overall && (
-              <AccordionItem value="overall">
-                <AccordionTrigger className="text-lg font-semibold">
-                  📊 Overall Assessment
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="prose prose-sm max-w-none dark:prose-invert">
-                    {sections.overall.split('\n').map((line, idx) => 
-                      line.trim() && <p key={idx} className="mb-2 leading-relaxed">{line}</p>
-                    )}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            )}
-          </Accordion>
+          </div>
         </CardContent>
       </Card>
     );

@@ -257,6 +257,14 @@ serve(async (req) => {
         // Get latest reading for current value
         const latestReading = readings[readings.length - 1];
         
+        // Calculate 24hr averages for DO and pH sensors
+        const now = new Date();
+        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const last24hrReadings = readings.filter(r => new Date(r.timestamp) >= twentyFourHoursAgo);
+        const mean24hr = last24hrReadings.length > 0
+          ? last24hrReadings.reduce((sum, r) => sum + r.value, 0) / last24hrReadings.length
+          : null;
+        
         const sensor = {
           id: `sensor_${channel.id}`,
           name: channel.name,
@@ -264,6 +272,7 @@ serve(async (req) => {
           category: channel.category,
           currentValue: parseFloat(latestReading.value.toFixed(channel.precision)),
           currentTimestamp: latestReading.timestamp,
+          mean24hr: mean24hr ? parseFloat(mean24hr.toFixed(channel.precision)) : null,
           readings: readings.map(r => ({
             timestamp: r.timestamp,
             value: parseFloat(r.value.toFixed(channel.precision))
@@ -300,6 +309,7 @@ serve(async (req) => {
             min: Math.min(...s.readings.map((r: any) => r.value)),
             max: Math.max(...s.readings.map((r: any) => r.value)),
             avg: s.readings.reduce((sum: number, r: any) => sum + r.value, 0) / s.readings.length,
+            mean24hr: s.mean24hr,
             trend: s.readings.length > 1 
               ? (s.readings[s.readings.length - 1].value - s.readings[0].value) 
               : 0

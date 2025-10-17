@@ -30,41 +30,40 @@ serve(async (req) => {
       maa: 'Provide the entire analysis in Maa language. Use clear, accessible language suitable for Maasai communities.'
     };
 
-    // Build comprehensive prompt with sensor data
+    // Calculate 24hr averages for DO and pH
+    const doSensor = sensors.find((s: any) => s.name.toLowerCase().includes('do') || s.name.toLowerCase().includes('oxygen'));
+    const phSensor = sensors.find((s: any) => s.name.toLowerCase().includes('ph'));
+    
+    const mean24hrDO = doSensor?.mean24hr || doSensor?.avg || 0;
+    const mean24hrPH = phSensor?.mean24hr || phSensor?.avg || 0;
+
+    // Build simple sensor summary
     const sensorDataText = sensors.map((s: any) => 
-      `${s.name}: Current=${s.current.toFixed(2)}${s.unit}, Min=${s.min.toFixed(2)}${s.unit}, Max=${s.max.toFixed(2)}${s.unit}, Avg=${s.avg.toFixed(2)}${s.unit}, Trend=${s.trend > 0 ? '+' : ''}${s.trend.toFixed(2)}${s.unit}`
+      `${s.name}: ${s.current.toFixed(2)} ${s.unit}`
     ).join('\n');
 
-    const systemPrompt = `You are a water quality expert analyzing data from the Mara River in Kenya, a critical ecosystem supporting wildlife and local communities. Provide a comprehensive yet accessible analysis. ${languageInstructions[language] || languageInstructions.english}`;
+    const systemPrompt = `You are a water quality expert. Write in a conversational, human tone - like you're explaining to a friend. No bullet points, no bold headings with **, no formal sections. Just natural paragraphs. ${languageInstructions[language] || languageInstructions.english}`;
 
-    const userPrompt = `Analyze this week's water quality data from ${station.name} and provide insights:
+    const userPrompt = `Analyze the Mara River water quality from ${station.name}. 
 
-SENSOR DATA (${timeRange}):
+Current readings:
 ${sensorDataText}
 
-Provide analysis in the following format:
+24-hour averages:
+- Dissolved Oxygen: ${mean24hrDO.toFixed(2)} mg/L
+- pH: ${mean24hrPH.toFixed(2)}
 
-**River Health Summary**
-[2-3 sentences for general public explaining overall river health status]
+Write 3-4 short paragraphs (2-3 sentences each) in a natural, conversational style:
 
-**Ecological Impact**
-- Temperature effects on fish and invertebrates
-- Dissolved oxygen levels and hypoxia risk
-- pH suitability for aquatic life
+1. Start with how the river is doing overall - is it healthy, stressed, or concerning? Speak plainly.
 
-**Flow Conditions**
-- Recent flooding or drought indicators
-- Water depth trends
+2. Talk about dissolved oxygen and temperature. What do these levels mean for fish and aquatic life? Keep it simple.
 
-**Water Chemistry**
-- Conductivity/salinity impacts on aquatic life
-- Other chemical indicators
+3. Explain the pH and water chemistry. Are these good levels or problematic?
 
-**Anomalies**
-- Any unusual readings or concerns
-- Sensor performance notes
+4. Mention flow conditions or any notable patterns you see in the data. End with a brief outlook.
 
-Keep explanations accessible but scientifically accurate. Focus on ecological implications. ${languageInstructions[language] || languageInstructions.english}`;
+Write naturally like a person, not a report. No bullet points. No headings. Just clear, conversational paragraphs. ${languageInstructions[language] || languageInstructions.english}`;
 
     console.log('Calling Lovable AI for river analysis...');
 

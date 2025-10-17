@@ -264,8 +264,11 @@ const Index = () => {
             <div className="space-y-4 mt-6">
               {data.sensors
                 .filter(sensor => {
-                  const lowercaseName = sensor.name.toLowerCase();
-                  return !['ph mv', 'depth f', 'depth psig', 'cable power'].includes(lowercaseName);
+                  const lowercaseName = sensor.name.toLowerCase().trim();
+                  const excludedSensors = ['ph mv', 'depth f', 'depth psig', 'cable power'];
+                  return !excludedSensors.some(excluded => 
+                    lowercaseName === excluded || lowercaseName.includes(excluded)
+                  );
                 })
                 .map(renderSensorChart)}
             </div>

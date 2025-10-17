@@ -33,6 +33,9 @@ interface Sensor {
   currentValue: number;
   currentTimestamp: string;
   readings: Reading[];
+  mean24hr?: number;
+  isMalfunctioning?: boolean;
+  malfunctionReason?: string;
 }
 
 interface DashboardData {
@@ -168,11 +171,45 @@ const Index = () => {
     };
   }, []); // Remove language dependency as it's handled by handleLanguageChange
 
+  const detectMalfunction = (sensor: Sensor): { isMalfunctioning: boolean; reason?: string } => {
+    if (!sensor.readings || sensor.readings.length < 10) {
+      return { isMalfunctioning: false };
+    }
+
+    // Check for stuck values (same value for extended period)
+    const recentValues = sensor.readings.slice(-20).map(r => r.value);
+    const uniqueValues = new Set(recentValues);
+    if (uniqueValues.size === 1) {
+      return { isMalfunctioning: true, reason: "Sensor reporting constant value (may be stuck)" };
+    }
+
+    // Check for unrealistic values
+    if (sensor.name.toLowerCase().includes('temp')) {
+      if (sensor.currentValue < -10 || sensor.currentValue > 50) {
+        return { isMalfunctioning: true, reason: "Temperature reading outside realistic range" };
+      }
+    }
+
+    // Check for extreme variance (noisy sensor)
+    const mean = recentValues.reduce((a, b) => a + b, 0) / recentValues.length;
+    const variance = recentValues.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentValues.length;
+    const stdDev = Math.sqrt(variance);
+    if (stdDev > mean * 0.5 && mean > 1) {
+      return { isMalfunctioning: true, reason: "Sensor showing erratic readings" };
+    }
+
+    return { isMalfunctioning: false };
+  };
+
   const renderSensorChart = (sensor: Sensor) => {
     // Safety check for readings array
     if (!sensor.readings || sensor.readings.length === 0) {
       return null;
     }
+
+    // Check for malfunction
+    const malfunction = detectMalfunction(sensor);
+    const isMalfunctioning = malfunction.isMalfunctioning;
 
     // Transform readings for recharts
     const chartData = sensor.readings.map(r => ({
@@ -184,8 +221,8 @@ const Index = () => {
       value: r.value
     }));
 
-    return (
-      <Card key={sensor.id} className="col-span-full">
+    const chartContent = (
+      <>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>{sensor.name}</span>
@@ -223,6 +260,35 @@ const Index = () => {
             </LineChart>
           </ResponsiveContainer>
         </CardContent>
+      </>
+    );
+
+    if (isMalfunctioning) {
+      return (
+        <Accordion key={sensor.id} type="single" collapsible className="col-span-full">
+          <AccordionItem value={sensor.id} className="border rounded-lg px-4">
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center gap-3 w-full">
+                <Badge variant="destructive" className="shrink-0">⚠️ Malfunction</Badge>
+                <div className="flex-1 text-left">
+                  <div className="font-semibold">{sensor.name}</div>
+                  <div className="text-sm text-muted-foreground">{malfunction.reason}</div>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent>
+              <Card className="border-0 shadow-none">
+                {chartContent}
+              </Card>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      );
+    }
+
+    return (
+      <Card key={sensor.id} className="col-span-full">
+        {chartContent}
       </Card>
     );
   };
@@ -376,7 +442,7 @@ const Index = () => {
               {data.sensors
                 .filter(sensor => {
                   const lowercaseName = sensor.name.toLowerCase().trim();
-                  const excludedSensors = ['ph mv', 'depth f', 'depth psig', 'cable power'];
+                  const excludedSensors = ['ph mv', 'ph - mv', 'depth f', 'depth psig', 'cable power'];
                   return !excludedSensors.some(excluded => 
                     lowercaseName === excluded || lowercaseName.includes(excluded)
                   );

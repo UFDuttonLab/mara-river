@@ -30,17 +30,32 @@ serve(async (req) => {
       maa: 'Provide the entire analysis in Maa language. Use clear, accessible language suitable for Maasai communities.'
     };
 
-    // Calculate 24hr averages for DO and pH
+    // Calculate 24hr averages for DO and Temperature
     const doSensor = sensors.find((s: any) => s.name.toLowerCase().includes('do') || s.name.toLowerCase().includes('oxygen'));
-    const phSensor = sensors.find((s: any) => s.name.toLowerCase().includes('ph'));
+    const tempSensor = sensors.find((s: any) => s.name.toLowerCase().includes('temp'));
     
     const mean24hrDO = doSensor?.mean24hr || doSensor?.avg || 0;
-    const mean24hrPH = phSensor?.mean24hr || phSensor?.avg || 0;
+    const mean24hrTemp = tempSensor?.mean24hr || tempSensor?.avg || 0;
 
-    // Build simple sensor summary
-    const sensorDataText = sensors.map((s: any) => 
+    // Detect malfunctioning sensors (stuck values)
+    const malfunctioningSensors = sensors.filter((s: any) => {
+      if (!s.readings || s.readings.length < 10) return false;
+      const recentValues = s.readings.slice(-20).map((r: any) => r.value);
+      const uniqueValues = new Set(recentValues);
+      return uniqueValues.size === 1;
+    });
+    
+    const malfunctionNames = malfunctioningSensors.map((s: any) => s.name).join(', ');
+
+    // Build simple sensor summary (exclude malfunctioning sensors from detailed analysis)
+    const workingSensors = sensors.filter((s: any) => !malfunctioningSensors.includes(s));
+    const sensorDataText = workingSensors.map((s: any) => 
       `${s.name}: ${s.current.toFixed(2)} ${s.unit}`
     ).join('\n');
+    
+    const malfunctionNote = malfunctioningSensors.length > 0 
+      ? `\n\nNote: ${malfunctionNames} may be malfunctioning.` 
+      : '';
 
     const systemPrompt = `You are a water quality expert. Write in a conversational, human tone - like you're explaining to a friend. No bullet points, no bold headings with **, no formal sections. Just natural paragraphs. ${languageInstructions[language] || languageInstructions.english}`;
 
@@ -51,7 +66,7 @@ ${sensorDataText}
 
 24-hour averages:
 - Dissolved Oxygen: ${mean24hrDO.toFixed(2)} mg/L
-- pH: ${mean24hrPH.toFixed(2)}
+- Temperature: ${mean24hrTemp.toFixed(2)} °C${malfunctionNote}
 
 Write 3-4 short paragraphs (2-3 sentences each) in a natural, conversational style:
 
@@ -62,6 +77,8 @@ Write 3-4 short paragraphs (2-3 sentences each) in a natural, conversational sty
 3. Explain the pH and water chemistry. Are these good levels or problematic?
 
 4. Mention flow conditions or any notable patterns you see in the data. End with a brief outlook.
+
+${malfunctioningSensors.length > 0 ? 'If sensors are malfunctioning, mention it very briefly in one sentence - do not analyze their data.' : ''}
 
 Write naturally like a person, not a report. No bullet points. No headings. Just clear, conversational paragraphs. ${languageInstructions[language] || languageInstructions.english}`;
 

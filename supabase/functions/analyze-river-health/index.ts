@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { station, sensors, timeRange } = await req.json();
+    const { station, sensors, timeRange, language = 'english' } = await req.json();
     
     if (!sensors || sensors.length === 0) {
       throw new Error('No sensor data provided');
@@ -23,12 +23,19 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
+    // Language-specific instructions
+    const languageInstructions: Record<string, string> = {
+      english: 'Provide the analysis in English.',
+      swahili: 'Provide the entire analysis in Swahili (Kiswahili). Use clear, accessible language suitable for local communities.',
+      maa: 'Provide the entire analysis in Maa language. Use clear, accessible language suitable for Maasai communities.'
+    };
+
     // Build comprehensive prompt with sensor data
     const sensorDataText = sensors.map((s: any) => 
       `${s.name}: Current=${s.current.toFixed(2)}${s.unit}, Min=${s.min.toFixed(2)}${s.unit}, Max=${s.max.toFixed(2)}${s.unit}, Avg=${s.avg.toFixed(2)}${s.unit}, Trend=${s.trend > 0 ? '+' : ''}${s.trend.toFixed(2)}${s.unit}`
     ).join('\n');
 
-    const systemPrompt = `You are a water quality expert analyzing data from the Mara River in Kenya, a critical ecosystem supporting wildlife and local communities. Provide a comprehensive yet accessible analysis.`;
+    const systemPrompt = `You are a water quality expert analyzing data from the Mara River in Kenya, a critical ecosystem supporting wildlife and local communities. Provide a comprehensive yet accessible analysis. ${languageInstructions[language] || languageInstructions.english}`;
 
     const userPrompt = `Analyze this week's water quality data from ${station.name} and provide insights:
 
@@ -57,7 +64,7 @@ Provide analysis in the following format:
 - Any unusual readings or concerns
 - Sensor performance notes
 
-Keep explanations accessible but scientifically accurate. Focus on ecological implications.`;
+Keep explanations accessible but scientifically accurate. Focus on ecological implications. ${languageInstructions[language] || languageInstructions.english}`;
 
     console.log('Calling Lovable AI for river analysis...');
 

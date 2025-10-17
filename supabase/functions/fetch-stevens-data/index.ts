@@ -39,6 +39,8 @@ serve(async (req) => {
   }
 
   try {
+    const { language = 'english' } = await req.json().catch(() => ({}));
+    
     const email = Deno.env.get('STEVENS_EMAIL');
     const password = Deno.env.get('STEVENS_PASSWORD');
 
@@ -302,7 +304,8 @@ serve(async (req) => {
               ? (s.readings[s.readings.length - 1].value - s.readings[0].value) 
               : 0
           })),
-          timeRange: '7 days'
+          timeRange: '7 days',
+          language: language // Pass language to analysis function
         };
 
         // Call analyze-river-health function

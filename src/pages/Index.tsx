@@ -262,7 +262,12 @@ const Index = () => {
             {latestPhoto && renderLatestPhoto()}
             
             <div className="space-y-4 mt-6">
-              {data.sensors.map(renderSensorChart)}
+              {data.sensors
+                .filter(sensor => {
+                  const lowercaseName = sensor.name.toLowerCase();
+                  return !['ph mv', 'depth f', 'depth psig', 'cable power'].includes(lowercaseName);
+                })
+                .map(renderSensorChart)}
             </div>
 
             <p className="text-sm text-muted-foreground text-center">

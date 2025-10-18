@@ -14,33 +14,7 @@ export type Database = {
   }
   public: {
     Tables: {
-      reconyx_photos: {
-        Row: {
-          created_at: string
-          file_size: number | null
-          id: string
-          photo_url: string
-          scraped_at: string
-          storage_url: string | null
-        }
-        Insert: {
-          created_at?: string
-          file_size?: number | null
-          id?: string
-          photo_url: string
-          scraped_at?: string
-          storage_url?: string | null
-        }
-        Update: {
-          created_at?: string
-          file_size?: number | null
-          id?: string
-          photo_url?: string
-          scraped_at?: string
-          storage_url?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Views: {
       [_ in never]: never

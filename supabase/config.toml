@@ -5,6 +5,3 @@ verify_jwt = false
 
 [functions.analyze-river-health]
 verify_jwt = false
-
-[functions.scrape-reconyx-photo]
-verify_jwt = false

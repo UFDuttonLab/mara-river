@@ -353,6 +353,8 @@ const Index = () => {
     const doSensor = data?.sensors.find(s => s.name.toLowerCase().includes('do'));
     const phSensor = data?.sensors.find(s => s.name.toLowerCase().includes('ph'));
 
+    const [generalAnalysis, communityImpact] = analysis.split('---COMMUNITY_IMPACT---');
+
     return (
       <Card className="col-span-full bg-gradient-to-br from-blue-50 to-green-50 dark:from-blue-950 dark:to-green-950 border-blue-200 dark:border-blue-800">
         <CardHeader>
@@ -400,12 +402,32 @@ const Index = () => {
             )}
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="prose prose-sm max-w-none dark:prose-invert leading-relaxed">
-            {analysis.split('\n\n').map((paragraph, idx) => 
+            {generalAnalysis.split('\n\n').map((paragraph, idx) => 
               paragraph.trim() && <p key={idx} className="mb-4">{paragraph}</p>
             )}
           </div>
+
+          {communityImpact && communityImpact.trim() && (
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="community-impact" className="border rounded-lg px-4">
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">🐟 Impact on Fish & Bug Communities</span>
+                    <Badge variant="outline" className="ml-2">Detailed Analysis</Badge>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="prose prose-sm max-w-none dark:prose-invert pt-2 leading-relaxed">
+                    {communityImpact.split('\n\n').map((paragraph, idx) => 
+                      paragraph.trim() && <p key={idx} className="mb-4">{paragraph}</p>
+                    )}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
         </CardContent>
       </Card>
     );

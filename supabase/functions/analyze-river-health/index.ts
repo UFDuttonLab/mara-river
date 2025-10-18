@@ -68,19 +68,24 @@ ${sensorDataText}
 - Dissolved Oxygen: ${mean24hrDO.toFixed(2)} mg/L
 - Temperature: ${mean24hrTemp.toFixed(2)} °C${malfunctionNote}
 
-Write 3-4 short paragraphs (2-3 sentences each) in a natural, conversational style:
+Write your response in TWO SECTIONS separated by "---COMMUNITY_IMPACT---":
 
+SECTION 1 - General Analysis (3-4 short paragraphs):
 1. Start with how the river is doing overall - is it healthy, stressed, or concerning? Speak plainly.
-
 2. Talk about dissolved oxygen and temperature. What do these levels mean for fish and aquatic life? Keep it simple.
-
 3. Explain the pH and water chemistry. Are these good levels or problematic?
-
 4. Mention flow conditions or any notable patterns you see in the data. End with a brief outlook.
 
 ${malfunctioningSensors.length > 0 ? 'If sensors are malfunctioning, mention it very briefly in one sentence - do not analyze their data.' : ''}
 
-Write naturally like a person, not a report. No bullet points. No headings. Just clear, conversational paragraphs. ${languageInstructions[language] || languageInstructions.english}`;
+Then write: "---COMMUNITY_IMPACT---"
+
+SECTION 2 - Fish & Bug Community Impacts (2-3 paragraphs):
+Based on the current water quality, explain specifically how these conditions affect:
+1. Fish communities: Discuss impacts on species like tilapia, catfish, and barbs that live in the Mara River. How do current DO, temperature, and pH levels affect their survival, breeding, and feeding?
+2. Aquatic invertebrates: Explain how mayflies, caddisflies, dragonflies, and other bugs are affected by these water conditions. Are they thriving or stressed?
+
+Keep this section conversational and accessible. No bullet points. No headings. Just clear paragraphs. ${languageInstructions[language] || languageInstructions.english}`;
 
     console.log('Calling Lovable AI for river analysis...');
 

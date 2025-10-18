@@ -351,7 +351,7 @@ const Index = () => {
     if (!analysis) return null;
 
     const doSensor = data?.sensors.find(s => s.name.toLowerCase().includes('do'));
-    const phSensor = data?.sensors.find(s => s.name.toLowerCase().includes('ph'));
+    const tempSensor = data?.sensors.find(s => s.name.toLowerCase().includes('temp'));
 
     const [generalAnalysis, communityImpact] = analysis.split('---COMMUNITY_IMPACT---');
 
@@ -390,13 +390,13 @@ const Index = () => {
                 </span>
               </div>
             )}
-            {phSensor && (
+            {tempSensor && (
               <div className="flex items-center gap-2">
-                <Badge className={`${getStatusColor('ph', phSensor.currentValue)} text-white`}>
-                  {getStatusText('ph', phSensor.currentValue)}
+                <Badge variant="outline">
+                  Temp
                 </Badge>
                 <span className="text-sm text-muted-foreground">
-                  pH: {phSensor.currentValue.toFixed(2)}
+                  {tempSensor.currentValue.toFixed(1)} {tempSensor.unit}
                 </span>
               </div>
             )}

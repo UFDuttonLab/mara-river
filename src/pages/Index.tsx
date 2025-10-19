@@ -57,6 +57,7 @@ const Index = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [language, setLanguage] = useState<Language>('english');
+  const [dbStats, setDbStats] = useState<{ stations: number; channels: number; readings: number } | null>(null);
   const { toast } = useToast();
 
   const fetchData = async (forceRefresh = false) => {
@@ -122,8 +123,31 @@ const Index = () => {
     }
   };
 
+  const fetchDatabaseStats = async () => {
+    try {
+      const [stationsResult, channelsResult, readingsResult] = await Promise.all([
+        supabase.from('sensor_stations').select('*', { count: 'exact', head: true }),
+        supabase.from('sensor_channels').select('*', { count: 'exact', head: true }),
+        supabase.from('sensor_readings').select('*', { count: 'exact', head: true })
+      ]);
+
+      setDbStats({
+        stations: stationsResult.count || 0,
+        channels: channelsResult.count || 0,
+        readings: readingsResult.count || 0
+      });
+    } catch (error) {
+      console.error('Error fetching database stats:', error);
+    }
+  };
+
   useEffect(() => {
     fetchData();
+    fetchDatabaseStats();
+    
+    // Refresh stats every 30 seconds
+    const interval = setInterval(fetchDatabaseStats, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const detectMalfunction = (sensor: Sensor): { isMalfunctioning: boolean; reason?: string } => {
@@ -386,6 +410,32 @@ const Index = () => {
             </Button>
           </div>
         </header>
+
+        {/* Database Statistics */}
+        {dbStats && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Database Statistics</CardTitle>
+              <CardDescription>Historical data stored indefinitely</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center p-4 bg-muted rounded-lg">
+                  <div className="text-3xl font-bold text-primary">{dbStats.stations.toLocaleString()}</div>
+                  <div className="text-sm text-muted-foreground mt-1">Stations</div>
+                </div>
+                <div className="text-center p-4 bg-muted rounded-lg">
+                  <div className="text-3xl font-bold text-primary">{dbStats.channels.toLocaleString()}</div>
+                  <div className="text-sm text-muted-foreground mt-1">Sensor Channels</div>
+                </div>
+                <div className="text-center p-4 bg-muted rounded-lg">
+                  <div className="text-3xl font-bold text-primary">{dbStats.readings.toLocaleString()}</div>
+                  <div className="text-sm text-muted-foreground mt-1">Readings Stored</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {data && data.sensors.length > 0 && (
           <>

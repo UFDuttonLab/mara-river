@@ -47,6 +47,8 @@ interface DashboardData {
   timestamp: string;
   analysis?: string;
   message?: string;
+  cached?: boolean;
+  lastUpdated?: string;
 }
 
 type Language = 'english' | 'swahili' | 'maa';
@@ -57,11 +59,11 @@ const Index = () => {
   const [language, setLanguage] = useState<Language>('english');
   const { toast } = useToast();
 
-  const fetchData = async () => {
+  const fetchData = async (forceRefresh = false) => {
     setLoading(true);
     try {
       const { data: responseData, error } = await supabase.functions.invoke('fetch-stevens-data', {
-        body: { language }
+        body: { language, forceRefresh }
       });
       
       if (error) throw error;
@@ -373,18 +375,26 @@ const Index = () => {
               {data?.station.id ? `Station ID: ${data.station.id}` : 'Real-time water quality monitoring'}
             </p>
           </div>
-          <Button onClick={fetchData} disabled={loading}>
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-            Refresh Data
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => fetchData(false)} disabled={loading} variant="outline" size="sm">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Refresh
+            </Button>
+            <Button onClick={() => fetchData(true)} disabled={loading} variant="outline" size="sm">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Force Refresh
+            </Button>
+          </div>
         </header>
 
         {data && data.sensors.length > 0 && (
           <>
+            {data.cached && (
+              <div className="text-sm text-muted-foreground flex items-center gap-2">
+                <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                Showing cached data • Last updated: {new Date(data.lastUpdated || data.timestamp).toLocaleString()}
+              </div>
+            )}
             {data.analysis && renderAnalysis(data.analysis)}
             
             <div className="space-y-4 mt-6">

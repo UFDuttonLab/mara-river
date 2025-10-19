@@ -14,7 +14,200 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      ai_analyses: {
+        Row: {
+          analysis_text: string
+          created_at: string | null
+          data_timestamp: string
+          id: string
+          language: string
+          sensor_data_snapshot: Json | null
+          station_id: string | null
+        }
+        Insert: {
+          analysis_text: string
+          created_at?: string | null
+          data_timestamp: string
+          id?: string
+          language: string
+          sensor_data_snapshot?: Json | null
+          station_id?: string | null
+        }
+        Update: {
+          analysis_text?: string
+          created_at?: string | null
+          data_timestamp?: string
+          id?: string
+          language?: string
+          sensor_data_snapshot?: Json | null
+          station_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_analyses_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "sensor_stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_fetch_log: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          fetch_completed_at: string | null
+          fetch_started_at: string
+          id: string
+          readings_count: number | null
+          station_id: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          fetch_completed_at?: string | null
+          fetch_started_at: string
+          id?: string
+          readings_count?: number | null
+          station_id?: string | null
+          status: string
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          fetch_completed_at?: string | null
+          fetch_started_at?: string
+          id?: string
+          readings_count?: number | null
+          station_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_fetch_log_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "sensor_stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sensor_channels: {
+        Row: {
+          category: string | null
+          channel_name: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          precision: number | null
+          sensor_name: string | null
+          station_id: string | null
+          stevens_channel_id: number
+          unit: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string | null
+          channel_name: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          precision?: number | null
+          sensor_name?: string | null
+          station_id?: string | null
+          stevens_channel_id: number
+          unit?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string | null
+          channel_name?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          precision?: number | null
+          sensor_name?: string | null
+          station_id?: string | null
+          stevens_channel_id?: number
+          unit?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sensor_channels_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "sensor_stations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sensor_readings: {
+        Row: {
+          channel_id: string | null
+          created_at: string | null
+          id: string
+          measured_at: string
+          value: number
+        }
+        Insert: {
+          channel_id?: string | null
+          created_at?: string | null
+          id?: string
+          measured_at: string
+          value: number
+        }
+        Update: {
+          channel_id?: string | null
+          created_at?: string | null
+          id?: string
+          measured_at?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sensor_readings_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "sensor_channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sensor_stations: {
+        Row: {
+          created_at: string | null
+          id: string
+          location: string | null
+          project_id: number | null
+          station_code: string
+          station_name: string
+          stevens_station_id: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          location?: string | null
+          project_id?: number | null
+          station_code: string
+          station_name: string
+          stevens_station_id: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          location?: string | null
+          project_id?: number | null
+          station_code?: string
+          station_name?: string
+          stevens_station_id?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

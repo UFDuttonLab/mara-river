@@ -99,7 +99,7 @@ const getCachedData = async (supabase: any, stevensStationId: number) => {
 // Store station and channel metadata
 const storeMetadata = async (supabase: any, stationInfo: any, channelsData: any[]) => {
   // Upsert station
-  const { data: station } = await supabase
+  const { data: station, error: stationError } = await supabase
     .from('sensor_stations')
     .upsert({
       stevens_station_id: stationInfo.id,
@@ -110,7 +110,16 @@ const storeMetadata = async (supabase: any, stationInfo: any, channelsData: any[
       updated_at: new Date().toISOString()
     }, { onConflict: 'stevens_station_id' })
     .select()
-    .single();
+    .maybeSingle();
+
+  if (stationError) {
+    console.error('Station upsert error:', stationError);
+    throw new Error(`Failed to upsert station: ${stationError.message}`);
+  }
+
+  if (!station) {
+    throw new Error('Station upsert returned no data');
+  }
   
   // Upsert channels
   const channelUpserts = channelsData.map((ch: any) => ({
@@ -124,10 +133,19 @@ const storeMetadata = async (supabase: any, stationInfo: any, channelsData: any[
     updated_at: new Date().toISOString()
   }));
   
-  const { data: channels } = await supabase
+  const { data: channels, error: channelsError } = await supabase
     .from('sensor_channels')
     .upsert(channelUpserts, { onConflict: 'station_id,stevens_channel_id' })
     .select();
+
+  if (channelsError) {
+    console.error('Channels upsert error:', channelsError);
+    throw new Error(`Failed to upsert channels: ${channelsError.message}`);
+  }
+
+  if (!channels || channels.length === 0) {
+    throw new Error('Channels upsert returned no data');
+  }
   
   return { station, channels };
 };
@@ -156,7 +174,11 @@ const storeReadings = async (supabase: any, channelMap: Map<number, string>, rea
     const batchSize = 1000;
     for (let i = 0; i < readingsToInsert.length; i += batchSize) {
       const batch = readingsToInsert.slice(i, i + batchSize);
-      await supabase.from('sensor_readings').insert(batch);
+      const { error: insertError } = await supabase.from('sensor_readings').insert(batch);
+      if (insertError) {
+        console.error(`Batch insert error (batch ${Math.floor(i / batchSize) + 1}):`, insertError);
+        throw new Error(`Failed to insert readings batch: ${insertError.message}`);
+      }
     }
   }
   

@@ -218,8 +218,15 @@ const Index = () => {
     const malfunction = detectMalfunction(sensor);
     const isMalfunctioning = malfunction.isMalfunctioning;
 
+    // Filter readings to last 7 days only
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const filteredReadings = sensor.readings.filter(r => 
+      new Date(r.timestamp) >= sevenDaysAgo
+    );
+
     // Transform readings for recharts
-    const chartData = sensor.readings.map(r => ({
+    const chartData = filteredReadings.map(r => ({
       time: new Date(r.timestamp).toLocaleDateString('en-US', { 
         month: 'short', 
         day: 'numeric',
@@ -238,7 +245,7 @@ const Index = () => {
             </span>
           </CardTitle>
           <CardDescription>
-            Last 7 days • Last updated: {new Date(sensor.currentTimestamp).toLocaleString()}
+            Last 7 days
           </CardDescription>
         </CardHeader>
         <CardContent>

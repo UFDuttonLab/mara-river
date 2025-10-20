@@ -99,7 +99,7 @@ const Index = () => {
     setLoading(true);
     try {
       const { data: responseData, error } = await supabase.functions.invoke('fetch-stevens-data', {
-        body: { language, forceRefresh: true, daysBack: 90 }
+        body: { language, forceRefresh: true, daysBack: 1095 }
       });
       
       if (error) throw error;
@@ -109,7 +109,7 @@ const Index = () => {
       
       toast({
         title: "Initial Data Load Complete",
-        description: "Downloaded 90 days of historical data",
+        description: "Downloaded 3 years of historical data",
       });
     } catch (error) {
       console.error('Error loading initial data:', error);
@@ -435,7 +435,7 @@ const Index = () => {
             {dbStats && dbStats.readings === 0 && (
               <Button onClick={handleInitialDataLoad} disabled={loading} variant="default" size="sm">
                 {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Initial Data Load (90 days)
+                Initial Data Load (3 years)
               </Button>
             )}
           </div>

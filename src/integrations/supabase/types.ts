@@ -181,7 +181,7 @@ export type Database = {
           id: string
           location: string | null
           project_id: number | null
-          station_code: string
+          station_code: string | null
           station_name: string
           stevens_station_id: number
           updated_at: string | null
@@ -191,7 +191,7 @@ export type Database = {
           id?: string
           location?: string | null
           project_id?: number | null
-          station_code: string
+          station_code?: string | null
           station_name: string
           stevens_station_id: number
           updated_at?: string | null
@@ -201,7 +201,7 @@ export type Database = {
           id?: string
           location?: string | null
           project_id?: number | null
-          station_code?: string
+          station_code?: string | null
           station_name?: string
           stevens_station_id?: number
           updated_at?: string | null

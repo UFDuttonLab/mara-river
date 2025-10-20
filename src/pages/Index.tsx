@@ -60,11 +60,11 @@ const Index = () => {
   const [dbStats, setDbStats] = useState<{ stations: number; channels: number; readings: number } | null>(null);
   const { toast } = useToast();
 
-  const fetchData = async (forceRefresh = false) => {
+  const fetchData = async (forceRefresh = false, daysBack = 7) => {
     setLoading(true);
     try {
       const { data: responseData, error } = await supabase.functions.invoke('fetch-stevens-data', {
-        body: { language, forceRefresh }
+        body: { language, forceRefresh, daysBack }
       });
       
       if (error) throw error;
@@ -88,6 +88,34 @@ const Index = () => {
       toast({
         title: "Error",
         description: "Failed to fetch sensor data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInitialDataLoad = async () => {
+    setLoading(true);
+    try {
+      const { data: responseData, error } = await supabase.functions.invoke('fetch-stevens-data', {
+        body: { language, forceRefresh: true, daysBack: 90 }
+      });
+      
+      if (error) throw error;
+      
+      setData(responseData.data);
+      fetchDatabaseStats(); // Refresh stats after initial load
+      
+      toast({
+        title: "Initial Data Load Complete",
+        description: "Downloaded 90 days of historical data",
+      });
+    } catch (error) {
+      console.error('Error loading initial data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load initial data",
         variant: "destructive",
       });
     } finally {
@@ -404,38 +432,14 @@ const Index = () => {
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
               Refresh
             </Button>
-            <Button onClick={() => fetchData(true)} disabled={loading} variant="outline" size="sm">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-              Force Refresh
-            </Button>
+            {dbStats && dbStats.readings === 0 && (
+              <Button onClick={handleInitialDataLoad} disabled={loading} variant="default" size="sm">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Initial Data Load (90 days)
+              </Button>
+            )}
           </div>
         </header>
-
-        {/* Database Statistics */}
-        {dbStats && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Database Statistics</CardTitle>
-              <CardDescription>Historical data stored indefinitely</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center p-4 bg-muted rounded-lg">
-                  <div className="text-3xl font-bold text-primary">{dbStats.stations.toLocaleString()}</div>
-                  <div className="text-sm text-muted-foreground mt-1">Stations</div>
-                </div>
-                <div className="text-center p-4 bg-muted rounded-lg">
-                  <div className="text-3xl font-bold text-primary">{dbStats.channels.toLocaleString()}</div>
-                  <div className="text-sm text-muted-foreground mt-1">Sensor Channels</div>
-                </div>
-                <div className="text-center p-4 bg-muted rounded-lg">
-                  <div className="text-3xl font-bold text-primary">{dbStats.readings.toLocaleString()}</div>
-                  <div className="text-sm text-muted-foreground mt-1">Readings Stored</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {data && data.sensors.length > 0 && (
           <>
@@ -462,6 +466,32 @@ const Index = () => {
             <p className="text-sm text-muted-foreground text-center">
               Last updated: {new Date(data.timestamp).toLocaleString()}
             </p>
+
+            {/* Database Statistics */}
+            {dbStats && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Database Statistics</CardTitle>
+                  <CardDescription>Historical data stored indefinitely</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center p-4 bg-muted rounded-lg">
+                      <div className="text-3xl font-bold text-primary">{dbStats.stations.toLocaleString()}</div>
+                      <div className="text-sm text-muted-foreground mt-1">Stations</div>
+                    </div>
+                    <div className="text-center p-4 bg-muted rounded-lg">
+                      <div className="text-3xl font-bold text-primary">{dbStats.channels.toLocaleString()}</div>
+                      <div className="text-sm text-muted-foreground mt-1">Sensor Channels</div>
+                    </div>
+                    <div className="text-center p-4 bg-muted rounded-lg">
+                      <div className="text-3xl font-bold text-primary">{dbStats.readings.toLocaleString()}</div>
+                      <div className="text-sm text-muted-foreground mt-1">Readings Stored</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </>
         )}
 

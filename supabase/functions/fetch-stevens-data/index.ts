@@ -222,7 +222,7 @@ serve(async (req) => {
 
   try {
     const supabase = getSupabaseClient();
-    const { language = 'english', forceRefresh = false } = await req.json().catch(() => ({}));
+    const { language = 'english', forceRefresh = false, daysBack = 7 } = await req.json().catch(() => ({}));
     
     const TARGET_STATION_ID = 5285; // Mara River Purungat Bridge
     
@@ -470,12 +470,15 @@ serve(async (req) => {
     console.log('Step 3: Fetching readings data...');
 
     // Step 3: Fetch readings for all channels
+    const minutes = daysBack * 24 * 60; // Convert days to minutes
+    console.log(`Fetching ${daysBack} days of data (${minutes} minutes)...`);
+    
     const readingsUrl = new URL(`${BASE_URL}/project/${projectId}/readings/v3/channels`);
     readingsUrl.searchParams.append('channel_ids', channelIds.join(','));
     readingsUrl.searchParams.append('range_type', 'relative');
     readingsUrl.searchParams.append('start_date', 'null');
     readingsUrl.searchParams.append('end_date', 'null');
-    readingsUrl.searchParams.append('minutes', '10080'); // 7 days
+    readingsUrl.searchParams.append('minutes', minutes.toString());
     readingsUrl.searchParams.append('transformation', 'none');
 
     const readingsResponse = await fetch(readingsUrl.toString(), {

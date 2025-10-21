@@ -93,6 +93,44 @@ export type Database = {
           },
         ]
       }
+      sensor_calibration_offsets: {
+        Row: {
+          channel_id: string
+          created_at: string
+          id: string
+          offset_value: number
+          reason: string
+          valid_from: string
+          valid_until: string | null
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          id?: string
+          offset_value: number
+          reason: string
+          valid_from: string
+          valid_until?: string | null
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          id?: string
+          offset_value?: number
+          reason?: string
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sensor_calibration_offsets_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "sensor_channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sensor_channels: {
         Row: {
           category: string | null

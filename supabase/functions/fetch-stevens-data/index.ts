@@ -261,6 +261,35 @@ serve(async (req) => {
       if (!shouldFetch) {
         console.log("Using cached data (still fresh)");
         
+        // Fetch calibration offsets
+        const { data: calibrationOffsets } = await supabase
+          .from('sensor_calibration_offsets')
+          .select('*');
+        
+        const offsetsMap = new Map<string, any[]>();
+        if (calibrationOffsets) {
+          calibrationOffsets.forEach((offset: any) => {
+            if (!offsetsMap.has(offset.channel_id)) {
+              offsetsMap.set(offset.channel_id, []);
+            }
+            offsetsMap.get(offset.channel_id)!.push(offset);
+          });
+        }
+
+        const applyOffset = (value: number, channelId: string, timestamp: string): number => {
+          const offsets = offsetsMap.get(channelId);
+          if (!offsets) return value;
+          
+          const readingTime = new Date(timestamp);
+          const activeOffset = offsets.find(offset => {
+            const validFrom = new Date(offset.valid_from);
+            const validUntil = offset.valid_until ? new Date(offset.valid_until) : null;
+            return readingTime >= validFrom && (!validUntil || readingTime <= validUntil);
+          });
+          
+          return activeOffset ? value + activeOffset.offset_value : value;
+        };
+        
         // Transform cached data to match expected format
         const channelMap = new Map(cachedData.channels.map((c: any) => [c.id, c]));
         const sensorDataMap = new Map<string, any>();
@@ -269,7 +298,9 @@ serve(async (req) => {
           const channel: any = channelMap.get(reading.channel_id);
           if (!channel) return;
           
-          const sensorKey = `sensor_${channel.stevens_channel_id}`;
+          const correctedValue = applyOffset(reading.value, reading.channel_id, reading.measured_at);
+          
+          const sensorKey = channel.id;
           if (!sensorDataMap.has(sensorKey)) {
             sensorDataMap.set(sensorKey, {
               id: sensorKey,
@@ -286,7 +317,7 @@ serve(async (req) => {
           const sensor = sensorDataMap.get(sensorKey);
           sensor.readings.push({
             timestamp: reading.measured_at,
-            value: reading.value
+            value: correctedValue
           });
         });
         
@@ -299,7 +330,6 @@ serve(async (req) => {
             sensor.currentValue = latest.value;
             sensor.currentTimestamp = latest.timestamp;
             
-            // Calculate 24hr mean
             const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
             const recent24hr = sensor.readings.filter((r: any) => new Date(r.timestamp) >= oneDayAgo);
             if (recent24hr.length > 0) {
@@ -536,35 +566,94 @@ serve(async (req) => {
       }
     });
 
+    // Fetch calibration offsets and stored channel data
+    const { data: storedChannels } = await supabase
+      .from('sensor_channels')
+      .select('id, stevens_channel_id');
+    
+    const stevensToDbChannelMap = new Map<number, string>();
+    if (storedChannels) {
+      storedChannels.forEach((ch: any) => {
+        stevensToDbChannelMap.set(ch.stevens_channel_id, ch.id);
+      });
+    }
+
+    const { data: calibrationOffsets } = await supabase
+      .from('sensor_calibration_offsets')
+      .select('*');
+    
+    const offsetsMap = new Map<string, any[]>();
+    if (calibrationOffsets) {
+      calibrationOffsets.forEach((offset: any) => {
+        if (!offsetsMap.has(offset.channel_id)) {
+          offsetsMap.set(offset.channel_id, []);
+        }
+        offsetsMap.get(offset.channel_id)!.push(offset);
+      });
+    }
+
+    // Helper function to apply calibration offset
+    const applyOffset = (value: number, channelDbId: string, timestamp: string): number => {
+      const offsets = offsetsMap.get(channelDbId);
+      if (!offsets) return value;
+      
+      const readingTime = new Date(timestamp);
+      const activeOffset = offsets.find(offset => {
+        const validFrom = new Date(offset.valid_from);
+        const validUntil = offset.valid_until ? new Date(offset.valid_until) : null;
+        return readingTime >= validFrom && (!validUntil || readingTime <= validUntil);
+      });
+      
+      return activeOffset ? value + activeOffset.offset_value : value;
+    };
+
     // Build structured sensor data with metadata
     const sensors: any[] = [];
 
     channels.forEach((channel: any) => {
       const readings = channelReadingsMap.get(channel.id);
       if (readings && readings.length > 0) {
+        // Get database UUID for this channel
+        const channelDbId = stevensToDbChannelMap.get(channel.id);
+        
         // Get latest reading for current value
         const latestReading = readings[readings.length - 1];
         
-        // Calculate 24hr averages
+        // Apply calibration offset to current value
+        const correctedCurrentValue = channelDbId 
+          ? applyOffset(latestReading.value, channelDbId, latestReading.timestamp)
+          : latestReading.value;
+        
+        // Calculate 24hr averages with corrected values
         const now = new Date();
         const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        const last24hrReadings = readings.filter(r => new Date(r.timestamp) >= twentyFourHoursAgo);
+        const last24hrReadings = readings
+          .filter(r => new Date(r.timestamp) >= twentyFourHoursAgo)
+          .map(r => channelDbId ? applyOffset(r.value, channelDbId, r.timestamp) : r.value);
         const mean24hr = last24hrReadings.length > 0
-          ? last24hrReadings.reduce((sum, r) => sum + r.value, 0) / last24hrReadings.length
+          ? last24hrReadings.reduce((sum, v) => sum + v, 0) / last24hrReadings.length
           : null;
         
+        // Apply calibration to all readings
+        const correctedReadings = readings.map(r => {
+          const correctedValue = channelDbId 
+            ? applyOffset(r.value, channelDbId, r.timestamp)
+            : r.value;
+          return {
+            timestamp: r.timestamp,
+            value: parseFloat(correctedValue.toFixed(channel.precision))
+          };
+        });
+        
         const sensor = {
-          id: `sensor_${channel.id}`,
+          id: channelDbId || `sensor_${channel.id}`,
           name: channel.name,
           unit: channel.unit,
           category: channel.category,
-          currentValue: parseFloat(latestReading.value.toFixed(channel.precision)),
+          currentValue: parseFloat(correctedCurrentValue.toFixed(channel.precision)),
           currentTimestamp: latestReading.timestamp,
           mean24hr: mean24hr ? parseFloat(mean24hr.toFixed(channel.precision)) : null,
-          readings: readings.map(r => ({
-            timestamp: r.timestamp,
-            value: parseFloat(r.value.toFixed(channel.precision))
-          }))
+          readings: correctedReadings
         };
 
         sensors.push(sensor);

@@ -19,6 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { 
+  Tooltip as UITooltip, 
+  TooltipContent, 
+  TooltipProvider, 
+  TooltipTrigger 
+} from "@/components/ui/tooltip";
 
 interface Reading {
   timestamp: string;
@@ -51,6 +57,15 @@ interface DashboardData {
   lastUpdated?: string;
 }
 
+interface CalibrationOffset {
+  id: string;
+  channel_id: string;
+  offset_value: number;
+  valid_from: string;
+  valid_until: string | null;
+  reason: string;
+}
+
 type Language = 'english' | 'swahili' | 'maa';
 
 const Index = () => {
@@ -58,6 +73,7 @@ const Index = () => {
   const [loading, setLoading] = useState(false);
   const [language, setLanguage] = useState<Language>('english');
   const [dbStats, setDbStats] = useState<{ stations: number; channels: number; readings: number } | null>(null);
+  const [calibrationOffsets, setCalibrationOffsets] = useState<CalibrationOffset[]>([]);
   const { toast } = useToast();
 
   const fetchData = async (forceRefresh = false, daysBack = 7) => {
@@ -105,7 +121,7 @@ const Index = () => {
       if (error) throw error;
       
       setData(responseData.data);
-      fetchDatabaseStats(); // Refresh stats after initial load
+      fetchDatabaseStats();
       
       toast({
         title: "Initial Data Load Complete",
@@ -125,7 +141,6 @@ const Index = () => {
 
   const handleLanguageChange = async (newLanguage: Language) => {
     setLanguage(newLanguage);
-    // Trigger immediate data refresh with new language
     setLoading(true);
     try {
       const { data: responseData, error } = await supabase.functions.invoke('fetch-stevens-data', {
@@ -151,6 +166,19 @@ const Index = () => {
     }
   };
 
+  const fetchCalibrationOffsets = async () => {
+    try {
+      const { data: offsetsData, error } = await supabase
+        .from('sensor_calibration_offsets')
+        .select('*');
+      
+      if (error) throw error;
+      setCalibrationOffsets(offsetsData || []);
+    } catch (error) {
+      console.error('Error fetching calibration offsets:', error);
+    }
+  };
+
   const fetchDatabaseStats = async () => {
     try {
       const [stationsResult, channelsResult, readingsResult] = await Promise.all([
@@ -172,32 +200,48 @@ const Index = () => {
   useEffect(() => {
     fetchData();
     fetchDatabaseStats();
+    fetchCalibrationOffsets();
     
-    // Refresh stats every 30 seconds
     const interval = setInterval(fetchDatabaseStats, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  const applyCalibrationOffset = (value: number, channelId: string, timestamp: string): { corrected: number; offset: CalibrationOffset | null } => {
+    const readingTime = new Date(timestamp);
+    const activeOffset = calibrationOffsets.find(offset => {
+      const validFrom = new Date(offset.valid_from);
+      const validUntil = offset.valid_until ? new Date(offset.valid_until) : null;
+      return offset.channel_id === channelId && 
+             readingTime >= validFrom && 
+             (!validUntil || readingTime <= validUntil);
+    });
+
+    if (activeOffset) {
+      return { 
+        corrected: value + activeOffset.offset_value, 
+        offset: activeOffset 
+      };
+    }
+    return { corrected: value, offset: null };
+  };
 
   const detectMalfunction = (sensor: Sensor): { isMalfunctioning: boolean; reason?: string } => {
     if (!sensor.readings || sensor.readings.length < 10) {
       return { isMalfunctioning: false };
     }
 
-    // Check for stuck values (same value for extended period)
     const recentValues = sensor.readings.slice(-20).map(r => r.value);
     const uniqueValues = new Set(recentValues);
     if (uniqueValues.size === 1) {
       return { isMalfunctioning: true, reason: "Sensor reporting constant value (may be stuck)" };
     }
 
-    // Check for unrealistic values
     if (sensor.name.toLowerCase().includes('temp')) {
       if (sensor.currentValue < -10 || sensor.currentValue > 50) {
         return { isMalfunctioning: true, reason: "Temperature reading outside realistic range" };
       }
     }
 
-    // Check for extreme variance (noisy sensor)
     const mean = recentValues.reduce((a, b) => a + b, 0) / recentValues.length;
     const variance = recentValues.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentValues.length;
     const stdDev = Math.sqrt(variance);
@@ -209,14 +253,18 @@ const Index = () => {
   };
 
   const renderSensorChart = (sensor: Sensor) => {
-    // Safety check for readings array
     if (!sensor.readings || sensor.readings.length === 0) {
       return null;
     }
 
-    // Check for malfunction
     const malfunction = detectMalfunction(sensor);
     const isMalfunctioning = malfunction.isMalfunctioning;
+
+    // Check if this sensor has an active calibration offset
+    const hasActiveOffset = calibrationOffsets.some(offset => 
+      offset.channel_id === sensor.id && 
+      (!offset.valid_until || new Date(offset.valid_until) > new Date())
+    );
 
     // Filter readings to last 7 days only
     const sevenDaysAgo = new Date();
@@ -225,23 +273,52 @@ const Index = () => {
       new Date(r.timestamp) >= sevenDaysAgo
     );
 
-    // Transform readings for recharts
-    const chartData = filteredReadings.map(r => ({
-      time: new Date(r.timestamp).toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric',
-        hour: '2-digit'
-      }),
-      value: r.value
-    }));
+    // Transform readings for recharts with calibration correction
+    const chartData = filteredReadings.map(r => {
+      const { corrected } = applyCalibrationOffset(r.value, sensor.id, r.timestamp);
+      return {
+        time: new Date(r.timestamp).toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric',
+          hour: '2-digit'
+        }),
+        value: corrected
+      };
+    });
+
+    // Apply calibration to current value
+    const { corrected: correctedCurrentValue, offset: currentOffset } = applyCalibrationOffset(
+      sensor.currentValue, 
+      sensor.id, 
+      sensor.currentTimestamp
+    );
 
     const chartContent = (
       <>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>{sensor.name}</span>
+            <span className="flex items-center gap-2">
+              {sensor.name}
+              {hasActiveOffset && currentOffset && (
+                <TooltipProvider>
+                  <UITooltip>
+                    <TooltipTrigger>
+                      <Badge variant="secondary" className="text-xs">
+                        Corrected
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs max-w-xs">{currentOffset.reason}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Raw value: {sensor.currentValue.toFixed(2)} {sensor.unit}
+                      </p>
+                    </TooltipContent>
+                  </UITooltip>
+                </TooltipProvider>
+              )}
+            </span>
             <span className="text-2xl font-bold text-primary">
-              {sensor.currentValue.toFixed(2)} {sensor.unit}
+              {correctedCurrentValue.toFixed(2)} {sensor.unit}
             </span>
           </CardTitle>
           <CardDescription>
@@ -308,7 +385,6 @@ const Index = () => {
   };
 
   const getStatusColor = (metric: string, value: number) => {
-    // Status thresholds for different metrics
     if (metric.toLowerCase().includes('do') || metric.toLowerCase().includes('oxygen')) {
       if (value >= 6) return 'bg-green-500';
       if (value >= 4) return 'bg-yellow-500';
@@ -367,7 +443,6 @@ const Index = () => {
             AI-powered water quality insights
           </CardDescription>
           
-          {/* Critical Metrics Overview */}
           <div className="flex gap-4 mt-4">
             {doSensor && (
               <div className="flex items-center gap-2">
@@ -474,7 +549,6 @@ const Index = () => {
               Last updated: {new Date(data.timestamp).toLocaleString()}
             </p>
 
-            {/* Database Statistics */}
             {dbStats && (
               <Card>
                 <CardHeader>
@@ -502,23 +576,24 @@ const Index = () => {
           </>
         )}
 
-        {data && data.sensors.length === 0 && (
+        {data && data.sensors.length === 0 && !loading && (
           <Card>
-            <CardContent className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <p className="text-muted-foreground mb-2">{data.message || 'No sensor data available'}</p>
-                <p className="text-sm text-muted-foreground">Station: {data.station.name}</p>
-              </div>
+            <CardContent className="p-8 text-center">
+              <p className="text-muted-foreground">{data.message || 'No sensor data available'}</p>
+              {dbStats && dbStats.readings === 0 && (
+                <Button onClick={handleInitialDataLoad} disabled={loading} variant="default" className="mt-4">
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Load Initial Data (3 years)
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}
 
-        {!data && !loading && (
-          <Card>
-            <CardContent className="flex items-center justify-center py-12">
-              <p className="text-muted-foreground">No data available. Click refresh to fetch data.</p>
-            </CardContent>
-          </Card>
+        {!data && loading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
         )}
       </div>
     </div>

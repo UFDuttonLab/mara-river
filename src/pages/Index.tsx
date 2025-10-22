@@ -116,6 +116,12 @@ const Index = () => {
         });
       });
 
+      console.log('📊 Database readings grouped by channel:');
+      console.log('Channel IDs in Map:', Array.from(readingsByChannel.keys()));
+      readingsByChannel.forEach((readings, channelId) => {
+        console.log(`  Channel ${channelId}: ${readings.length} readings`);
+      });
+
       return readingsByChannel;
     } catch (error) {
       console.error('Error fetching historical chart data:', error);
@@ -128,6 +134,7 @@ const Index = () => {
     try {
       // 1. Fetch historical data for charts (7 days from database)
       const readingsByChannel = await fetchHistoricalChartData();
+      console.log('✅ Fetched historical readings:', readingsByChannel.size, 'channels');
 
       // 2. Fetch current values + AI analysis from edge function
       const { data: responseData, error } = await supabase.functions.invoke('fetch-stevens-data', {
@@ -136,6 +143,12 @@ const Index = () => {
       
       if (error) throw error;
       
+      console.log('🔄 Edge function returned sensors:', responseData.data.sensors.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        readingCount: s.readings?.length || 0
+      })));
+
       // 3. Merge: Use current values from edge function, but historical readings from database
       const mergedData = {
         ...responseData.data,
@@ -144,6 +157,12 @@ const Index = () => {
           readings: readingsByChannel.get(sensor.id) || [] // Use database readings
         }))
       };
+
+      console.log('✨ Merged sensors:', mergedData.sensors.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        readingCount: s.readings?.length || 0
+      })));
 
       setData(mergedData);
       

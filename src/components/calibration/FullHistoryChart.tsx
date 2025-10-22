@@ -61,11 +61,17 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
   const filteredChartData = useMemo(() => {
     if (!startDate || !endDate) return chartData;
     
-    const startTime = new Date(startDate).setHours(0, 0, 0, 0);
-    const endTime = new Date(endDate).setHours(23, 59, 59, 999);
+    // Create NEW date objects to avoid mutating state
+    const startTime = new Date(startDate.getTime());
+    startTime.setHours(0, 0, 0, 0);
+    const startTimestamp = startTime.getTime();
+    
+    const endTime = new Date(endDate.getTime());
+    endTime.setHours(23, 59, 59, 999);
+    const endTimestamp = endTime.getTime();
     
     return chartData.filter(item => 
-      item.timestamp >= startTime && item.timestamp <= endTime
+      item.timestamp >= startTimestamp && item.timestamp <= endTimestamp
     );
   }, [chartData, startDate, endDate]);
 

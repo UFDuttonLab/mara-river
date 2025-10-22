@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import {
@@ -25,6 +25,7 @@ import {
   TooltipProvider, 
   TooltipTrigger 
 } from "@/components/ui/tooltip";
+import { CalibrationManager } from "@/components/calibration/CalibrationManager";
 
 interface Reading {
   timestamp: string;
@@ -74,6 +75,7 @@ const Index = () => {
   const [language, setLanguage] = useState<Language>('english');
   const [dbStats, setDbStats] = useState<{ stations: number; channels: number; readings: number } | null>(null);
   const [calibrationOffsets, setCalibrationOffsets] = useState<CalibrationOffset[]>([]);
+  const [isCalibrationManagerOpen, setIsCalibrationManagerOpen] = useState(false);
   const { toast } = useToast();
 
   const fetchData = async (forceRefresh = false, daysBack = 7) => {
@@ -510,6 +512,10 @@ const Index = () => {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button onClick={() => setIsCalibrationManagerOpen(true)} variant="outline" size="sm">
+              <Settings className="h-4 w-4 mr-2" />
+              Calibration
+            </Button>
             <Button onClick={() => fetchData(false)} disabled={loading} variant="outline" size="sm">
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
               Refresh
@@ -596,6 +602,11 @@ const Index = () => {
           </div>
         )}
       </div>
+
+      <CalibrationManager 
+        isOpen={isCalibrationManagerOpen} 
+        onClose={() => setIsCalibrationManagerOpen(false)} 
+      />
     </div>
   );
 };

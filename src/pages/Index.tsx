@@ -407,7 +407,7 @@ const Index = () => {
 
     // Filter to one reading per day (prefer readings around noon) for cleaner X-axis
     const dailyReadings = sensor.readings.reduce((acc, reading) => {
-      const date = new Date(reading.timestamp).toLocaleDateString();
+      const date = new Date(reading.timestamp).toISOString().split('T')[0]; // UTC date
       if (!acc[date]) {
         acc[date] = reading;
       }

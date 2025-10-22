@@ -67,7 +67,7 @@ interface CalibrationOffset {
   reason: string;
 }
 
-type Language = 'english' | 'swahili' | 'maa';
+type Language = 'english' | 'swahili';
 
 const Index = () => {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -265,7 +265,7 @@ const Index = () => {
       
       toast({
         title: "Language Updated",
-        description: `Analysis updated to ${newLanguage === 'english' ? 'English' : newLanguage === 'swahili' ? 'Kiswahili' : 'Maa'}`,
+        description: `Analysis updated to ${newLanguage === 'english' ? 'English' : 'Kiswahili'}`,
       });
     } catch (error) {
       console.error('Error updating language:', error);
@@ -588,7 +588,6 @@ const Index = () => {
               <SelectContent>
                 <SelectItem value="english">English</SelectItem>
                 <SelectItem value="swahili">Kiswahili</SelectItem>
-                <SelectItem value="maa">Maa</SelectItem>
               </SelectContent>
             </Select>
           </div>

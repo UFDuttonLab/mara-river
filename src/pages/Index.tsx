@@ -78,27 +78,85 @@ const Index = () => {
   const [isCalibrationManagerOpen, setIsCalibrationManagerOpen] = useState(false);
   const { toast } = useToast();
 
+  const fetchHistoricalChartData = async () => {
+    try {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      // Query database for last 7 days
+      const { data: readings, error } = await supabase
+        .from('sensor_readings')
+        .select(`
+          id,
+          measured_at,
+          value,
+          channel_id,
+          sensor_channels!inner(
+            id,
+            sensor_name,
+            unit,
+            category
+          )
+        `)
+        .gte('measured_at', sevenDaysAgo.toISOString())
+        .order('measured_at', { ascending: true });
+
+      if (error) throw error;
+
+      // Group readings by channel_id
+      const readingsByChannel = new Map<string, Reading[]>();
+      readings?.forEach(reading => {
+        const channelId = reading.channel_id;
+        if (!readingsByChannel.has(channelId)) {
+          readingsByChannel.set(channelId, []);
+        }
+        readingsByChannel.get(channelId)?.push({
+          timestamp: reading.measured_at,
+          value: reading.value
+        });
+      });
+
+      return readingsByChannel;
+    } catch (error) {
+      console.error('Error fetching historical chart data:', error);
+      return new Map();
+    }
+  };
+
   const fetchData = async (forceRefresh = false, daysBack = 7) => {
     setLoading(true);
     try {
+      // 1. Fetch historical data for charts (7 days from database)
+      const readingsByChannel = await fetchHistoricalChartData();
+
+      // 2. Fetch current values + AI analysis from edge function
       const { data: responseData, error } = await supabase.functions.invoke('fetch-stevens-data', {
-        body: { language, forceRefresh, daysBack }
+        body: { language, forceRefresh, daysBack: 1 } // Only need current values
       });
       
       if (error) throw error;
       
-      setData(responseData.data);
+      // 3. Merge: Use current values from edge function, but historical readings from database
+      const mergedData = {
+        ...responseData.data,
+        sensors: responseData.data.sensors.map((sensor: Sensor) => ({
+          ...sensor,
+          readings: readingsByChannel.get(sensor.id) || [] // Use database readings
+        }))
+      };
+
+      setData(mergedData);
       
-      if (responseData.data?.message) {
+      if (mergedData?.message) {
         toast({
           title: "No Data Available",
-          description: responseData.data.message,
+          description: mergedData.message,
           variant: "destructive",
         });
       } else {
         toast({
           title: "Data Updated",
-          description: `${responseData.data.sensors.length} sensors updated successfully`,
+          description: `${mergedData.sensors.length} sensors updated successfully`,
         });
       }
     } catch (error) {
@@ -116,18 +174,31 @@ const Index = () => {
   const handleInitialDataLoad = async () => {
     setLoading(true);
     try {
+      // 1. Fetch and store 3 years of data via edge function
       const { data: responseData, error } = await supabase.functions.invoke('fetch-stevens-data', {
         body: { language, forceRefresh: true, daysBack: 1095 }
       });
       
       if (error) throw error;
       
-      setData(responseData.data);
+      // 2. Fetch last 7 days from database for charts
+      const readingsByChannel = await fetchHistoricalChartData();
+      
+      // 3. Merge data: current values from edge function, chart data from database
+      const mergedData = {
+        ...responseData.data,
+        sensors: responseData.data.sensors.map((sensor: Sensor) => ({
+          ...sensor,
+          readings: readingsByChannel.get(sensor.id) || []
+        }))
+      };
+      
+      setData(mergedData);
       fetchDatabaseStats();
       
       toast({
         title: "Initial Data Load Complete",
-        description: "Downloaded 3 years of historical data",
+        description: "Downloaded 3 years of historical data (showing last 7 days)",
       });
     } catch (error) {
       console.error('Error loading initial data:', error);
@@ -145,12 +216,26 @@ const Index = () => {
     setLanguage(newLanguage);
     setLoading(true);
     try {
+      // 1. Fetch last 7 days from database for charts
+      const readingsByChannel = await fetchHistoricalChartData();
+      
+      // 2. Fetch current values + new language analysis from edge function
       const { data: responseData, error } = await supabase.functions.invoke('fetch-stevens-data', {
-        body: { language: newLanguage }
+        body: { language: newLanguage, daysBack: 1 }
       });
       
       if (error) throw error;
-      setData(responseData.data);
+      
+      // 3. Merge data
+      const mergedData = {
+        ...responseData.data,
+        sensors: responseData.data.sensors.map((sensor: Sensor) => ({
+          ...sensor,
+          readings: readingsByChannel.get(sensor.id) || []
+        }))
+      };
+      
+      setData(mergedData);
       
       toast({
         title: "Language Updated",

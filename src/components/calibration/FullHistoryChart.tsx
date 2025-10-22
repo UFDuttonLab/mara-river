@@ -1,8 +1,13 @@
 import { useMemo, useState, useEffect } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush, ReferenceArea } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea } from "recharts";
 import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 interface Reading {
   id: string;
@@ -29,11 +34,18 @@ interface FullHistoryChartProps {
 export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDeleteReading }: FullHistoryChartProps) => {
   const [selectedReading, setSelectedReading] = useState<{ id: string; value: number; date: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [brushStartIndex, setBrushStartIndex] = useState<number>(0);
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
-  // Reset brush when readings change (e.g., when switching sensors)
+  // Initialize date range from readings data
   useEffect(() => {
-    setBrushStartIndex(0);
+    if (readings.length > 0) {
+      const dates = readings.map(r => new Date(r.measured_at));
+      const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+      const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+      setStartDate(minDate);
+      setEndDate(maxDate);
+    }
   }, [readings]);
 
   const chartData = useMemo(() => {
@@ -44,6 +56,28 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
       date: format(new Date(reading.measured_at), "MMM d, yyyy HH:mm"),
     }));
   }, [readings]);
+
+  // Filter chart data based on date range
+  const filteredChartData = useMemo(() => {
+    if (!startDate || !endDate) return chartData;
+    
+    const startTime = new Date(startDate).setHours(0, 0, 0, 0);
+    const endTime = new Date(endDate).setHours(23, 59, 59, 999);
+    
+    return chartData.filter(item => 
+      item.timestamp >= startTime && item.timestamp <= endTime
+    );
+  }, [chartData, startDate, endDate]);
+
+  const handleResetDateRange = () => {
+    if (readings.length > 0) {
+      const dates = readings.map(r => new Date(r.measured_at));
+      const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+      const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+      setStartDate(minDate);
+      setEndDate(maxDate);
+    }
+  };
 
   const handleDotClick = (data: any) => {
     if (onDeleteReading && data) {
@@ -137,8 +171,74 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
         </CardTitle>
       </CardHeader>
       <CardContent>
+        <div className="flex flex-wrap items-center gap-4 mb-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">Start Date:</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-[200px] justify-start text-left font-normal",
+                    !startDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {startDate ? format(startDate, "MMM d, yyyy") : <span>Pick start date</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={startDate}
+                  onSelect={setStartDate}
+                  initialFocus
+                  className="pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">End Date:</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-[200px] justify-start text-left font-normal",
+                    !endDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {endDate ? format(endDate, "MMM d, yyyy") : <span>Pick end date</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={endDate}
+                  onSelect={setEndDate}
+                  initialFocus
+                  className="pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <Button variant="secondary" onClick={handleResetDateRange}>
+            Reset to Full Range
+          </Button>
+        </div>
+
+        {startDate && endDate && (
+          <p className="text-sm text-muted-foreground mb-4">
+            Showing {filteredChartData.length} of {chartData.length} readings from {format(startDate, "MMM d, yyyy")} to {format(endDate, "MMM d, yyyy")}
+          </p>
+        )}
+
         <ResponsiveContainer width="100%" height={500}>
-          <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+          <LineChart data={filteredChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
             <XAxis 
               dataKey="timestamp" 
@@ -185,20 +285,6 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
               strokeWidth={2}
               dot={<CustomDot />}
               name={`${sensorName} ${unit ? `(${unit})` : ''}`}
-            />
-            
-            <Brush 
-              dataKey="timestamp" 
-              height={30} 
-              stroke="hsl(var(--primary))"
-              tickFormatter={(timestamp) => format(new Date(timestamp), "MMM yyyy")}
-              startIndex={brushStartIndex}
-              endIndex={chartData.length - 1}
-              onChange={(brushArea: any) => {
-                if (brushArea && brushArea.startIndex !== undefined) {
-                  setBrushStartIndex(brushArea.startIndex);
-                }
-              }}
             />
           </LineChart>
         </ResponsiveContainer>

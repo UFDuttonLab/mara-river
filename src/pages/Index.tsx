@@ -229,7 +229,7 @@ const Index = () => {
 
   const SENSOR_VALIDATION_RULES: Record<string, { minValue?: number; maxValue?: number; allowNegative?: boolean }> = {
     'ph': { minValue: 0, maxValue: 14, allowNegative: false },
-    'do': { minValue: 0, maxValue: 20, allowNegative: false },
+    'do': { minValue: 0, maxValue: 350, allowNegative: false },
     'do %': { minValue: 0, maxValue: 120, allowNegative: false },
     'temp': { minValue: -10, maxValue: 50 },
     'conductivity': { minValue: 0, allowNegative: false },

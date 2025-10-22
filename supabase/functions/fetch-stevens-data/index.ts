@@ -196,7 +196,7 @@ interface ValidationRule {
 
 const SENSOR_VALIDATION_RULES: Record<string, ValidationRule> = {
   'ph': { minValue: 0, maxValue: 14, allowNegative: false, checkStuck: true },
-  'do': { minValue: 0, maxValue: 20, allowNegative: false, checkStuck: true },
+  'do': { minValue: 0, maxValue: 350, allowNegative: false, checkStuck: true },
   'do %': { minValue: 0, maxValue: 120, allowNegative: false, checkStuck: true },
   'temp': { minValue: -10, maxValue: 50, checkStuck: true },
   'conductivity': { minValue: 0, allowNegative: false, checkStuck: true },

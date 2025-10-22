@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Brush, ReferenceArea } from "recharts";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +30,11 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
   const [selectedReading, setSelectedReading] = useState<{ id: string; value: number; date: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [brushStartIndex, setBrushStartIndex] = useState<number>(0);
+
+  // Reset brush when readings change (e.g., when switching sensors)
+  useEffect(() => {
+    setBrushStartIndex(0);
+  }, [readings]);
 
   const chartData = useMemo(() => {
     return readings.map((reading) => ({

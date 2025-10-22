@@ -43,6 +43,14 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
       const dates = readings.map(r => new Date(r.measured_at));
       const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
       const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+      
+      console.log('🔍 DEBUG - FullHistoryChart date initialization:');
+      console.log('  Total readings:', readings.length);
+      console.log('  Min date:', minDate.toISOString(), '→', format(minDate, "MMM d, yyyy"));
+      console.log('  Max date:', maxDate.toISOString(), '→', format(maxDate, "MMM d, yyyy"));
+      console.log('  First reading:', readings[0].measured_at);
+      console.log('  Last reading:', readings[readings.length - 1].measured_at);
+      
       setStartDate(minDate);
       setEndDate(maxDate);
     }
@@ -80,6 +88,10 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
       const dates = readings.map(r => new Date(r.measured_at));
       const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
       const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+      
+      console.log('🔄 DEBUG - Reset date range called:');
+      console.log('  Resetting to:', format(minDate, "MMM d, yyyy"), '-', format(maxDate, "MMM d, yyyy"));
+      
       setStartDate(minDate);
       setEndDate(maxDate);
     }
@@ -197,7 +209,10 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
                 <Calendar
                   mode="single"
                   selected={startDate}
-                  onSelect={setStartDate}
+                  onSelect={(date) => {
+                    console.log('📅 DEBUG - Start date selected:', date?.toISOString());
+                    setStartDate(date);
+                  }}
                   initialFocus
                   className="pointer-events-auto"
                 />
@@ -224,7 +239,10 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
                 <Calendar
                   mode="single"
                   selected={endDate}
-                  onSelect={setEndDate}
+                  onSelect={(date) => {
+                    console.log('📅 DEBUG - End date selected:', date?.toISOString());
+                    setEndDate(date);
+                  }}
                   initialFocus
                   className="pointer-events-auto"
                 />

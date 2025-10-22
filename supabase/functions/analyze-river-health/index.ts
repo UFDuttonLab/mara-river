@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { station, sensors, timeRange, language = 'english' } = await req.json();
+    const { station, sensors, timeRange, language = 'english', invalidSensors = [] } = await req.json();
     
     if (!sensors || sensors.length === 0) {
       throw new Error('No sensor data provided');
@@ -56,13 +56,19 @@ serve(async (req) => {
     const malfunctionNote = malfunctioningSensors.length > 0 
       ? `\n\nNote: ${malfunctionNames} may be malfunctioning.` 
       : '';
+    
+    const invalidSensorNote = invalidSensors.length > 0 
+      ? `\n\nNote: The following sensors are currently malfunctioning and excluded from analysis: ${invalidSensors.map((s: any) => `${s.name} (${s.reason})`).join(', ')}.`
+      : '';
+    
+    const hasPHSensor = workingSensors.some((s: any) => s.name.toLowerCase().includes('ph'));
 
     const systemPrompt = `You are a water quality expert. Write in a conversational, human tone - like you're explaining to a friend. No bullet points, no bold headings with **, no formal sections. Just natural paragraphs. ${languageInstructions[language] || languageInstructions.english}`;
 
     const userPrompt = `Analyze the Mara River water quality from ${station.name}. 
 
 Current readings:
-${sensorDataText}
+${sensorDataText}${invalidSensorNote}
 
 24-hour averages:
 - Dissolved Oxygen: ${mean24hrDO.toFixed(2)} mg/L
@@ -73,16 +79,16 @@ Write your response in TWO SECTIONS separated by "---COMMUNITY_IMPACT---":
 SECTION 1 - General Analysis (3-4 short paragraphs):
 1. Start with how the river is doing overall - is it healthy, stressed, or concerning? Speak plainly.
 2. Talk about dissolved oxygen and temperature. What do these levels mean for fish and aquatic life? Keep it simple.
-3. Explain the pH and water chemistry. Are these good levels or problematic?
+${hasPHSensor ? '3. Explain the pH and water chemistry. Are these good levels or problematic?' : '3. Discuss other available water quality parameters (conductivity, depth, flow, etc.).'}
 4. Mention flow conditions or any notable patterns you see in the data. End with a brief outlook.
 
-${malfunctioningSensors.length > 0 ? 'If sensors are malfunctioning, mention it very briefly in one sentence - do not analyze their data.' : ''}
+${invalidSensors.length > 0 ? 'Note: Some sensors are currently offline or malfunctioning - do not mention or discuss their data.' : ''}
 
 Then write: "---COMMUNITY_IMPACT---"
 
 SECTION 2 - Fish & Bug Community Impacts (2-3 paragraphs):
 Based on the current water quality, explain specifically how these conditions affect:
-1. Fish communities: Discuss impacts on species like tilapia, catfish, and barbs that live in the Mara River. How do current DO, temperature, and pH levels affect their survival, breeding, and feeding?
+1. Fish communities: Discuss impacts on species like tilapia, catfish, and barbs that live in the Mara River. How do current DO${hasPHSensor ? ', temperature, and pH' : ' and temperature'} levels affect their survival, breeding, and feeding?
 2. Aquatic invertebrates: Explain how mayflies, caddisflies, dragonflies, and other bugs are affected by these water conditions. Are they thriving or stressed?
 
 Keep this section conversational and accessible. No bullet points. No headings. Just clear paragraphs. ${languageInstructions[language] || languageInstructions.english}`;

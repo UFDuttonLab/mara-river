@@ -227,27 +227,60 @@ const Index = () => {
     return { corrected: value, offset: null };
   };
 
+  const SENSOR_VALIDATION_RULES: Record<string, { minValue?: number; maxValue?: number; allowNegative?: boolean }> = {
+    'ph': { minValue: 0, maxValue: 14, allowNegative: false },
+    'do': { minValue: 0, maxValue: 20, allowNegative: false },
+    'do %': { minValue: 0, maxValue: 120, allowNegative: false },
+    'temp': { minValue: -10, maxValue: 50 },
+    'conductivity': { minValue: 0, allowNegative: false },
+    'sc': { minValue: 0, allowNegative: false },
+    'orp': { minValue: -500, maxValue: 500 },
+    'depth': { minValue: 0, allowNegative: false },
+    'salinity': { minValue: 0, maxValue: 50, allowNegative: false },
+    'cable power': { minValue: 0, maxValue: 15, allowNegative: false }
+  };
+
   const detectMalfunction = (sensor: Sensor): { isMalfunctioning: boolean; reason?: string } => {
     if (!sensor.readings || sensor.readings.length < 10) {
       return { isMalfunctioning: false };
     }
 
+    const sensorNameLower = sensor.name.toLowerCase();
+    
+    // Find matching validation rule
+    let rule: { minValue?: number; maxValue?: number; allowNegative?: boolean } | undefined;
+    for (const [key, validationRule] of Object.entries(SENSOR_VALIDATION_RULES)) {
+      if (sensorNameLower.includes(key)) {
+        rule = validationRule;
+        break;
+      }
+    }
+
+    // Check against validation rules
+    if (rule) {
+      if (rule.minValue !== undefined && sensor.currentValue < rule.minValue) {
+        return { isMalfunctioning: true, reason: `Reading ${sensor.currentValue.toFixed(2)} below valid minimum ${rule.minValue}` };
+      }
+      
+      if (rule.maxValue !== undefined && sensor.currentValue > rule.maxValue) {
+        return { isMalfunctioning: true, reason: `Reading ${sensor.currentValue.toFixed(2)} above valid maximum ${rule.maxValue}` };
+      }
+    } else if (sensor.currentValue < 0) {
+      return { isMalfunctioning: true, reason: "Negative value detected" };
+    }
+
+    // Check for stuck values
     const recentValues = sensor.readings.slice(-20).map(r => r.value);
     const uniqueValues = new Set(recentValues);
     if (uniqueValues.size === 1) {
       return { isMalfunctioning: true, reason: "Sensor reporting constant value (may be stuck)" };
     }
 
-    if (sensor.name.toLowerCase().includes('temp')) {
-      if (sensor.currentValue < -10 || sensor.currentValue > 50) {
-        return { isMalfunctioning: true, reason: "Temperature reading outside realistic range" };
-      }
-    }
-
+    // Check for erratic readings
     const mean = recentValues.reduce((a, b) => a + b, 0) / recentValues.length;
     const variance = recentValues.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / recentValues.length;
     const stdDev = Math.sqrt(variance);
-    if (stdDev > mean * 0.5 && mean > 1) {
+    if (stdDev > mean * 0.8 && mean > 1) {
       return { isMalfunctioning: true, reason: "Sensor showing erratic readings" };
     }
 

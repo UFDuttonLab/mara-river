@@ -185,6 +185,86 @@ const storeReadings = async (supabase: any, channelMap: Map<number, string>, rea
   return readingsToInsert.length;
 };
 
+// Sensor validation rules - physically impossible value ranges
+interface ValidationRule {
+  minValue?: number;
+  maxValue?: number;
+  allowNegative?: boolean;
+  checkStuck?: boolean;
+  checkVariance?: boolean;
+}
+
+const SENSOR_VALIDATION_RULES: Record<string, ValidationRule> = {
+  'ph': { minValue: 0, maxValue: 14, allowNegative: false, checkStuck: true },
+  'do': { minValue: 0, maxValue: 20, allowNegative: false, checkStuck: true },
+  'do %': { minValue: 0, maxValue: 120, allowNegative: false, checkStuck: true },
+  'temp': { minValue: -10, maxValue: 50, checkStuck: true },
+  'conductivity': { minValue: 0, allowNegative: false, checkStuck: true },
+  'sc': { minValue: 0, allowNegative: false, checkStuck: true },
+  'orp': { minValue: -500, maxValue: 500, checkStuck: true },
+  'depth': { minValue: 0, allowNegative: false },
+  'salinity': { minValue: 0, maxValue: 50, allowNegative: false },
+  'cable power': { minValue: 0, maxValue: 15, allowNegative: false }
+};
+
+function validateSensor(sensor: any): { isValid: boolean; reason?: string } {
+  const sensorNameLower = sensor.name.toLowerCase();
+  
+  // Find matching validation rule
+  let rule: ValidationRule | undefined;
+  for (const [key, validationRule] of Object.entries(SENSOR_VALIDATION_RULES)) {
+    if (sensorNameLower.includes(key)) {
+      rule = validationRule;
+      break;
+    }
+  }
+  
+  // If no rule found, use basic negative check
+  if (!rule) {
+    if (sensor.currentValue < 0) {
+      return { isValid: false, reason: `Negative value (${sensor.currentValue.toFixed(2)})` };
+    }
+    return { isValid: true };
+  }
+  
+  // Check if sensor has enough data
+  if (!sensor.readings || sensor.readings.length < 10) {
+    return { isValid: false, reason: 'Insufficient data' };
+  }
+  
+  // Check current value against min/max
+  if (rule.minValue !== undefined && sensor.currentValue < rule.minValue) {
+    return { isValid: false, reason: `Value ${sensor.currentValue.toFixed(2)} below minimum ${rule.minValue}` };
+  }
+  
+  if (rule.maxValue !== undefined && sensor.currentValue > rule.maxValue) {
+    return { isValid: false, reason: `Value ${sensor.currentValue.toFixed(2)} above maximum ${rule.maxValue}` };
+  }
+  
+  // Check for stuck values
+  if (rule.checkStuck) {
+    const recentValues = sensor.readings.slice(-20).map((r: any) => r.value);
+    const uniqueValues = new Set(recentValues);
+    if (uniqueValues.size === 1) {
+      return { isValid: false, reason: 'Stuck on constant value' };
+    }
+  }
+  
+  // Check for extreme variance (sensor going haywire)
+  if (rule.checkVariance) {
+    const recentValues = sensor.readings.slice(-20).map((r: any) => r.value);
+    const mean = recentValues.reduce((a: number, b: number) => a + b, 0) / recentValues.length;
+    const variance = recentValues.reduce((a: number, b: number) => a + Math.pow(b - mean, 2), 0) / recentValues.length;
+    const stdDev = Math.sqrt(variance);
+    
+    if (stdDev > mean * 0.8 && mean > 1) {
+      return { isValid: false, reason: 'Erratic/unstable readings' };
+    }
+  }
+  
+  return { isValid: true };
+}
+
 // Get or generate AI analysis
 const getOrGenerateAnalysis = async (supabase: any, stationId: string, language: string, sensorData: any) => {
   // Check cache (< 1 hour old)
@@ -338,6 +418,26 @@ serve(async (req) => {
           }
         });
         
+        // Validate sensors before AI analysis
+        const validatedSensors = sensors.map(sensor => ({
+          sensor,
+          validation: validateSensor(sensor)
+        }));
+        
+        const workingSensors = validatedSensors
+          .filter(v => v.validation.isValid)
+          .map(v => v.sensor);
+        
+        const invalidSensors = validatedSensors
+          .filter(v => !v.validation.isValid);
+        
+        if (invalidSensors.length > 0) {
+          console.log('Filtered out invalid sensors (cached):', invalidSensors.map(v => ({
+            name: v.sensor.name,
+            reason: v.validation.reason
+          })));
+        }
+        
         // Get or generate AI analysis
         const { analysis } = await getOrGenerateAnalysis(
           supabase,
@@ -345,7 +445,7 @@ serve(async (req) => {
           language,
           { 
             station: { name: cachedData.station.station_name, location: 'Mara River, Kenya' }, 
-            sensors: sensors.map(s => ({
+            sensors: workingSensors.map(s => ({
               name: s.name,
               unit: s.unit,
               current: s.currentValue,
@@ -356,7 +456,11 @@ serve(async (req) => {
               trend: s.readings.length > 1 ? (s.readings[s.readings.length - 1].value - s.readings[0].value) : 0
             })),
             timeRange: '7 days', 
-            language 
+            language,
+            invalidSensors: invalidSensors.map(v => ({
+              name: v.sensor.name,
+              reason: v.validation.reason
+            }))
           }
         );
         
@@ -698,12 +802,32 @@ serve(async (req) => {
     let analysisText = '';
     if (sensors.length > 0) {
       try {
+        // Validate sensors before AI analysis
+        const validatedSensors = sensors.map(sensor => ({
+          sensor,
+          validation: validateSensor(sensor)
+        }));
+        
+        const workingSensors = validatedSensors
+          .filter(v => v.validation.isValid)
+          .map(v => v.sensor);
+        
+        const invalidSensors = validatedSensors
+          .filter(v => !v.validation.isValid);
+        
+        if (invalidSensors.length > 0) {
+          console.log('Filtered out invalid sensors:', invalidSensors.map(v => ({
+            name: v.sensor.name,
+            reason: v.validation.reason
+          })));
+        }
+        
         const analysisPayload = {
           station: {
             name: targetStationName,
             location: 'Mara River, Kenya'
           },
-          sensors: sensors.map(s => ({
+          sensors: workingSensors.map(s => ({
             name: s.name,
             unit: s.unit,
             current: s.currentValue,
@@ -716,7 +840,11 @@ serve(async (req) => {
               : 0
           })),
           timeRange: '7 days',
-          language: language
+          language: language,
+          invalidSensors: invalidSensors.map(v => ({
+            name: v.sensor.name,
+            reason: v.validation.reason
+          }))
         };
 
         // Check if we have station UUID from cache

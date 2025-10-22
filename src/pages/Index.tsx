@@ -99,7 +99,8 @@ const Index = () => {
           )
         `)
         .gte('measured_at', sevenDaysAgo.toISOString())
-        .order('measured_at', { ascending: true });
+        .order('measured_at', { ascending: true })
+        .limit(10000);
 
       if (error) throw error;
 

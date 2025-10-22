@@ -26,37 +26,7 @@ serve(async (req) => {
     // Language-specific instructions
     const languageInstructions: Record<string, string> = {
       english: 'Provide the analysis in English.',
-      swahili: 'Provide the entire analysis in Swahili (Kiswahili). Use clear, accessible language suitable for local communities.',
-      maa: `Provide the entire analysis in Maa language for Maasai communities.
-
-ESSENTIAL MAA VOCABULARY - Use these words:
-- Water: Engare
-- River: Olkiok
-- Fish: Oloolaiser (plural: Iloolaiser)
-- Good/Healthy: Sidai
-- Bad/Problem: Mayian
-- Hot/Warm: Oleng
-- Cold: Kesho
-- Many/Much: Oontikoki
-- Few/Little: Osupat
-- Clean: Kesiako
-- Dirty: Kisaru
-
-EXAMPLE PHRASES to guide your translation:
-- "Engare enye sidai" (The water is good)
-- "Iloolaiser oontikoki" (Many fish)
-- "Olkiok ena mayian" (The river has problems)
-- "Engare oleng ai" (The water is hot)
-
-TRANSLATION GUIDELINES:
-1. Use the Maa vocabulary provided above
-2. For technical terms (dissolved oxygen, pH, conductivity, etc.), use Swahili words that Maasai speakers understand - DO NOT try to invent Maa translations for scientific terms
-3. Keep sentence structure simple and conversational
-4. Focus on being clearly understood rather than perfect Maa grammar
-5. Mix Maa and Swahili naturally, as Maasai speakers do in everyday conversation
-6. Use accessible language suitable for pastoral communities
-
-Write naturally as if explaining to a Maasai elder or community member.`
+      swahili: 'Provide the entire analysis in Swahili (Kiswahili). Use clear, accessible language suitable for local communities.'
     };
 
     // Calculate 24hr averages for DO and Temperature

@@ -29,6 +29,7 @@ interface FullHistoryChartProps {
 export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDeleteReading }: FullHistoryChartProps) => {
   const [selectedReading, setSelectedReading] = useState<{ id: string; value: number; date: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [brushStartIndex, setBrushStartIndex] = useState<number>(0);
 
   const chartData = useMemo(() => {
     return readings.map((reading) => ({
@@ -186,6 +187,13 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
               height={30} 
               stroke="hsl(var(--primary))"
               tickFormatter={(timestamp) => format(new Date(timestamp), "MMM yyyy")}
+              startIndex={brushStartIndex}
+              endIndex={chartData.length - 1}
+              onChange={(brushArea: any) => {
+                if (brushArea && brushArea.startIndex !== undefined) {
+                  setBrushStartIndex(brushArea.startIndex);
+                }
+              }}
             />
           </LineChart>
         </ResponsiveContainer>

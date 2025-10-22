@@ -395,7 +395,6 @@ serve(async (req) => {
               readings: [],
               currentValue: 0,
               currentTimestamp: '',
-              mean24hr: 0
             });
           }
           
@@ -414,12 +413,6 @@ serve(async (req) => {
             const latest = sensor.readings[sensor.readings.length - 1];
             sensor.currentValue = latest.value;
             sensor.currentTimestamp = latest.timestamp;
-            
-            const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-            const recent24hr = sensor.readings.filter((r: any) => new Date(r.timestamp) >= oneDayAgo);
-            if (recent24hr.length > 0) {
-              sensor.mean24hr = recent24hr.reduce((sum: number, r: any) => sum + r.value, 0) / recent24hr.length;
-            }
           }
         });
         
@@ -457,7 +450,6 @@ serve(async (req) => {
               min: Math.min(...s.readings.map((r: any) => r.value)),
               max: Math.max(...s.readings.map((r: any) => r.value)),
               avg: s.readings.reduce((sum: number, r: any) => sum + r.value, 0) / s.readings.length,
-              mean24hr: s.mean24hr,
               trend: s.readings.length > 1 ? (s.readings[s.readings.length - 1].value - s.readings[0].value) : 0
             })),
             timeRange: '7 days', 
@@ -733,16 +725,6 @@ serve(async (req) => {
           ? applyOffset(latestReading.value, channelDbId, latestReading.timestamp)
           : latestReading.value;
         
-        // Calculate 24hr averages with corrected values
-        const now = new Date();
-        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        const last24hrReadings = readings
-          .filter(r => new Date(r.timestamp) >= twentyFourHoursAgo)
-          .map(r => channelDbId ? applyOffset(r.value, channelDbId, r.timestamp) : r.value);
-        const mean24hr = last24hrReadings.length > 0
-          ? last24hrReadings.reduce((sum, v) => sum + v, 0) / last24hrReadings.length
-          : null;
-        
         // Apply calibration to all readings
         const correctedReadings = readings.map(r => {
           const correctedValue = channelDbId 
@@ -761,7 +743,6 @@ serve(async (req) => {
           category: channel.category,
           currentValue: parseFloat(correctedCurrentValue.toFixed(channel.precision)),
           currentTimestamp: latestReading.timestamp,
-          mean24hr: mean24hr ? parseFloat(mean24hr.toFixed(channel.precision)) : null,
           readings: correctedReadings
         };
 
@@ -839,7 +820,6 @@ serve(async (req) => {
             min: Math.min(...s.readings.map((r: any) => r.value)),
             max: Math.max(...s.readings.map((r: any) => r.value)),
             avg: s.readings.reduce((sum: number, r: any) => sum + r.value, 0) / s.readings.length,
-            mean24hr: s.mean24hr,
             trend: s.readings.length > 1 
               ? (s.readings[s.readings.length - 1].value - s.readings[0].value) 
               : 0

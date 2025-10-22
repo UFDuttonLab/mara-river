@@ -40,7 +40,6 @@ interface Sensor {
   currentValue: number;
   currentTimestamp: string;
   readings: Reading[];
-  mean24hr?: number;
   isMalfunctioning?: boolean;
   malfunctionReason?: string;
 }

@@ -29,12 +29,12 @@ serve(async (req) => {
       swahili: 'Provide the entire analysis in Swahili (Kiswahili). Use clear, accessible language suitable for local communities.'
     };
 
-    // Calculate 24hr averages for DO and Temperature
+    // Get latest values for DO and Temperature
     const doSensor = sensors.find((s: any) => s.name.toLowerCase().includes('do') || s.name.toLowerCase().includes('oxygen'));
     const tempSensor = sensors.find((s: any) => s.name.toLowerCase().includes('temp'));
     
-    const mean24hrDO = doSensor?.mean24hr || doSensor?.avg || 0;
-    const mean24hrTemp = tempSensor?.mean24hr || tempSensor?.avg || 0;
+    const currentDO = doSensor?.current || 0;
+    const currentTemp = tempSensor?.current || 0;
 
     // Detect malfunctioning sensors (stuck values)
     const malfunctioningSensors = sensors.filter((s: any) => {
@@ -69,9 +69,9 @@ serve(async (req) => {
 Current readings:
 ${sensorDataText}${invalidSensorNote}
 
-24-hour averages:
-- Dissolved Oxygen: ${mean24hrDO.toFixed(2)} mg/L
-- Temperature: ${mean24hrTemp.toFixed(2)} °C${malfunctionNote}
+Latest measurements:
+- Dissolved Oxygen: ${currentDO.toFixed(2)} mg/L
+- Temperature: ${currentTemp.toFixed(2)} °C${malfunctionNote}
 
 Write your response in TWO SECTIONS separated by "---COMMUNITY_IMPACT---":
 

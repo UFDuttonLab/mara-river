@@ -405,15 +405,24 @@ const Index = () => {
       (!offset.valid_until || new Date(offset.valid_until) > new Date())
     );
 
+    // Filter to one reading per day (prefer readings around noon) for cleaner X-axis
+    const dailyReadings = sensor.readings.reduce((acc, reading) => {
+      const date = new Date(reading.timestamp).toLocaleDateString();
+      if (!acc[date]) {
+        acc[date] = reading;
+      }
+      return acc;
+    }, {} as Record<string, typeof sensor.readings[0]>);
+
+    const readingsToChart = Object.values(dailyReadings);
+
     // Transform readings for recharts with calibration correction
-    // (edge function already returns the correct 7-day range)
-    const chartData = sensor.readings.map(r => {
+    const chartData = readingsToChart.map(r => {
       const { corrected } = applyCalibrationOffset(r.value, sensor.id, r.timestamp);
       return {
         time: new Date(r.timestamp).toLocaleDateString('en-US', { 
           month: 'short', 
-          day: 'numeric',
-          hour: '2-digit'
+          day: 'numeric'
         }),
         value: corrected
       };

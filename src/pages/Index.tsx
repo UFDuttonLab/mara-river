@@ -83,49 +83,55 @@ const Index = () => {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       
-      // Query database for last 7 days
-      const { data: readings, error } = await supabase
-        .from('sensor_readings')
-        .select(`
-          id,
-          measured_at,
-          value,
-          channel_id,
-          sensor_channels!inner(
-            id,
-            sensor_name,
-            unit,
-            category
-          )
-        `)
-        .gte('measured_at', sevenDaysAgo.toISOString())
-        .order('measured_at', { ascending: true })
-        .limit(10000);
+      console.log('🔍 Fetching historical chart data for past 7 days');
+      console.log('   Date range:', sevenDaysAgo.toISOString(), 'to', new Date().toISOString());
 
-      if (error) throw error;
+      // First, get all active channels
+      const { data: channels, error: channelsError } = await supabase
+        .from('sensor_channels')
+        .select('id')
+        .eq('is_active', true);
 
-      // Group readings by channel_id
+      if (channelsError) {
+        console.error('Error fetching channels:', channelsError);
+        return new Map();
+      }
+
+      if (!channels || channels.length === 0) {
+        console.log('⚠️ No active channels found');
+        return new Map();
+      }
+
+      console.log(`📋 Found ${channels.length} active channels`);
+
       const readingsByChannel = new Map<string, Reading[]>();
-      readings?.forEach(reading => {
-        const channelId = reading.channel_id;
-        if (!readingsByChannel.has(channelId)) {
-          readingsByChannel.set(channelId, []);
+      
+      // Fetch readings for each channel separately to avoid row limits
+      for (const channel of channels) {
+        const { data: readings, error } = await supabase
+          .from('sensor_readings')
+          .select('measured_at, value')
+          .eq('channel_id', channel.id)
+          .gte('measured_at', sevenDaysAgo.toISOString())
+          .order('measured_at', { ascending: true });
+
+        if (!error && readings && readings.length > 0) {
+          readingsByChannel.set(channel.id, readings.map(r => ({
+            timestamp: r.measured_at,
+            value: r.value
+          })));
+          console.log(`   ✅ Channel ${channel.id}: ${readings.length} readings`);
+        } else if (error) {
+          console.error(`   ❌ Error fetching readings for channel ${channel.id}:`, error);
+        } else {
+          console.log(`   ⚠️ Channel ${channel.id}: No readings found`);
         }
-        readingsByChannel.get(channelId)?.push({
-          timestamp: reading.measured_at,
-          value: reading.value
-        });
-      });
+      }
 
-      console.log('📊 Database readings grouped by channel:');
-      console.log('Channel IDs in Map:', Array.from(readingsByChannel.keys()));
-      readingsByChannel.forEach((readings, channelId) => {
-        console.log(`  Channel ${channelId}: ${readings.length} readings`);
-      });
-
+      console.log(`📊 Total channels with data: ${readingsByChannel.size}`);
       return readingsByChannel;
     } catch (error) {
-      console.error('Error fetching historical chart data:', error);
+      console.error('Error in fetchHistoricalChartData:', error);
       return new Map();
     }
   };

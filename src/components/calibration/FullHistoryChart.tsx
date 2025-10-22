@@ -37,16 +37,31 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
+  // Calculate min/max dates from readings for calendar range
+  const dateRange = useMemo(() => {
+    if (readings.length === 0) return { min: new Date(), max: new Date() };
+    const dates = readings.map(r => new Date(r.measured_at));
+    const min = new Date(Math.min(...dates.map(d => d.getTime())));
+    const max = new Date(Math.max(...dates.map(d => d.getTime())));
+    console.log('📅 Calendar Date Range:', {
+      min: min.toISOString(),
+      max: max.toISOString(),
+      readingsCount: readings.length
+    });
+    return { min, max };
+  }, [readings]);
+
   // Initialize date range from readings data
   useEffect(() => {
     if (readings.length > 0) {
-      const dates = readings.map(r => new Date(r.measured_at));
-      const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
-      const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
-      setStartDate(minDate);
-      setEndDate(maxDate);
+      console.log('🔄 Initializing date pickers:', {
+        startDate: dateRange.min.toISOString(),
+        endDate: dateRange.max.toISOString()
+      });
+      setStartDate(dateRange.min);
+      setEndDate(dateRange.max);
     }
-  }, [readings]);
+  }, [readings, dateRange.min, dateRange.max]);
 
   const chartData = useMemo(() => {
     return readings.map((reading) => ({
@@ -77,11 +92,9 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
 
   const handleResetDateRange = () => {
     if (readings.length > 0) {
-      const dates = readings.map(r => new Date(r.measured_at));
-      const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
-      const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
-      setStartDate(minDate);
-      setEndDate(maxDate);
+      console.log('🔄 Resetting date range to full range');
+      setStartDate(dateRange.min);
+      setEndDate(dateRange.max);
     }
   };
 
@@ -198,6 +211,9 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
                   mode="single"
                   selected={startDate}
                   onSelect={setStartDate}
+                  fromDate={dateRange.min}
+                  toDate={dateRange.max}
+                  captionLayout="dropdown-buttons"
                   initialFocus
                   className="pointer-events-auto"
                 />
@@ -225,6 +241,9 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
                   mode="single"
                   selected={endDate}
                   onSelect={setEndDate}
+                  fromDate={dateRange.min}
+                  toDate={dateRange.max}
+                  captionLayout="dropdown-buttons"
                   initialFocus
                   className="pointer-events-auto"
                 />

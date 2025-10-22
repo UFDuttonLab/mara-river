@@ -415,33 +415,19 @@ const Index = () => {
       (!offset.valid_until || new Date(offset.valid_until) > new Date())
     );
 
-    // Filter to one reading per day (prefer readings around noon) for cleaner X-axis
-    const dailyReadings = sensor.readings.reduce((acc, reading) => {
-      const date = new Date(reading.timestamp).toISOString().split('T')[0]; // UTC date
-      if (!acc[date]) {
-        acc[date] = reading;
-      }
-      return acc;
-    }, {} as Record<string, typeof sensor.readings[0]>);
-
-    console.log(`   Daily readings (unique dates): ${Object.keys(dailyReadings).length}`);
-    console.log(`   Dates: ${Object.keys(dailyReadings).join(', ')}`);
-
-    const readingsToChart = Object.values(dailyReadings);
-
-    // Transform readings for recharts with calibration correction
-    const chartData = readingsToChart.map(r => {
-      const { corrected } = applyCalibrationOffset(r.value, sensor.id, r.timestamp);
+    // Use ALL readings and apply calibration correction
+    const chartData = sensor.readings.map(reading => {
+      const { corrected } = applyCalibrationOffset(reading.value, sensor.id, reading.timestamp);
+      const date = new Date(reading.timestamp);
+      
       return {
-        time: new Date(r.timestamp).toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric'
-        }),
+        timestamp: date.getTime(), // Timestamp for proper sorting
+        dateLabel: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         value: corrected
       };
-    });
+    }).sort((a, b) => a.timestamp - b.timestamp); // Ensure chronological order
 
-    console.log(`   Chart data points: ${chartData.length}`, chartData.map(d => d.time));
+    console.log(`   Chart data points: ${chartData.length}`);
 
     // Apply calibration to current value
     const { corrected: correctedCurrentValue, offset: currentOffset } = applyCalibrationOffset(
@@ -487,9 +473,12 @@ const Index = () => {
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis 
-                dataKey="time" 
+                dataKey="timestamp" 
                 tick={{ fontSize: 12 }}
-                interval="preserveStartEnd"
+                tickFormatter={(timestamp) => {
+                  const date = new Date(timestamp);
+                  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                }}
               />
               <YAxis 
                 label={{ value: sensor.unit, angle: -90, position: 'insideLeft' }}
@@ -497,6 +486,7 @@ const Index = () => {
               />
               <Tooltip 
                 formatter={(value: number) => [`${value.toFixed(2)} ${sensor.unit}`, sensor.name]}
+                labelFormatter={(timestamp) => new Date(timestamp).toLocaleString()}
               />
               <Line 
                 type="monotone" 

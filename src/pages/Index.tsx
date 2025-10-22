@@ -301,15 +301,9 @@ const Index = () => {
       (!offset.valid_until || new Date(offset.valid_until) > new Date())
     );
 
-    // Filter readings to last 7 days only
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const filteredReadings = sensor.readings.filter(r => 
-      new Date(r.timestamp) >= sevenDaysAgo
-    );
-
     // Transform readings for recharts with calibration correction
-    const chartData = filteredReadings.map(r => {
+    // (edge function already returns the correct 7-day range)
+    const chartData = sensor.readings.map(r => {
       const { corrected } = applyCalibrationOffset(r.value, sensor.id, r.timestamp);
       return {
         time: new Date(r.timestamp).toLocaleDateString('en-US', { 

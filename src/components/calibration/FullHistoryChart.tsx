@@ -37,6 +37,18 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
+  // Calculate date range boundaries for calendar navigation
+  const dateRange = useMemo(() => {
+    if (readings.length === 0) {
+      return { min: undefined, max: undefined };
+    }
+    const dates = readings.map(r => new Date(r.measured_at));
+    return {
+      min: new Date(Math.min(...dates.map(d => d.getTime()))),
+      max: new Date(Math.max(...dates.map(d => d.getTime())))
+    };
+  }, [readings]);
+
   // Initialize date range from readings data
   useEffect(() => {
     if (readings.length > 0) {
@@ -213,6 +225,9 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
                     console.log('📅 DEBUG - Start date selected:', date?.toISOString());
                     setStartDate(date);
                   }}
+                  fromDate={dateRange.min}
+                  toDate={dateRange.max}
+                  captionLayout="dropdown-buttons"
                   initialFocus
                   className="pointer-events-auto"
                 />
@@ -243,6 +258,9 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
                     console.log('📅 DEBUG - End date selected:', date?.toISOString());
                     setEndDate(date);
                   }}
+                  fromDate={dateRange.min}
+                  toDate={dateRange.max}
+                  captionLayout="dropdown-buttons"
                   initialFocus
                   className="pointer-events-auto"
                 />

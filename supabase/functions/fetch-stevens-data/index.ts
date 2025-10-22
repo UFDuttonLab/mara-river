@@ -174,7 +174,12 @@ const storeReadings = async (supabase: any, channelMap: Map<number, string>, rea
     const batchSize = 1000;
     for (let i = 0; i < readingsToInsert.length; i += batchSize) {
       const batch = readingsToInsert.slice(i, i + batchSize);
-      const { error: insertError } = await supabase.from('sensor_readings').insert(batch);
+      const { error: insertError } = await supabase
+        .from('sensor_readings')
+        .upsert(batch, { 
+          onConflict: 'channel_id,measured_at',
+          ignoreDuplicates: true 
+        });
       if (insertError) {
         console.error(`Batch insert error (batch ${Math.floor(i / batchSize) + 1}):`, insertError);
         throw new Error(`Failed to insert readings batch: ${insertError.message}`);

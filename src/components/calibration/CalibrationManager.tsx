@@ -53,11 +53,11 @@ export const CalibrationManager = ({ isOpen, onClose }: CalibrationManagerProps)
     fetchSensors();
   }, []);
 
-  // Fetch readings and offsets when sensor changes
+  // Fetch offsets when sensor changes (readings are fetched on-demand via date selection)
   useEffect(() => {
     if (selectedSensorId && isAuthenticated) {
-      fetchReadings(selectedSensorId);
       fetchOffsets(selectedSensorId);
+      setReadings([]); // Clear readings when sensor changes
     }
   }, [selectedSensorId, isAuthenticated]);
 
@@ -77,17 +77,20 @@ export const CalibrationManager = ({ isOpen, onClose }: CalibrationManagerProps)
     }
   };
 
-  const fetchReadings = async (channelId: string) => {
+  const fetchReadings = async (channelId: string, startDate: Date, endDate: Date) => {
     setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from("sensor_readings")
         .select("id, measured_at, value")
         .eq("channel_id", channelId)
+        .gte("measured_at", startDate.toISOString())
+        .lte("measured_at", endDate.toISOString())
         .order("measured_at", { ascending: true });
 
       if (error) throw error;
       setReadings(data || []);
+      toast.success(`Loaded ${data?.length || 0} readings`);
     } catch (error) {
       console.error("Error fetching readings:", error);
       toast.error("Failed to load historical data");
@@ -191,9 +194,8 @@ export const CalibrationManager = ({ isOpen, onClose }: CalibrationManagerProps)
     try {
       await callEdgeFunction("delete_reading", { reading_id: readingId });
       toast.success("Reading deleted successfully");
-      if (selectedSensorId) {
-        await fetchReadings(selectedSensorId);
-      }
+      // Remove the deleted reading from state without refetching
+      setReadings(prevReadings => prevReadings.filter(r => r.id !== readingId));
     } catch (error: any) {
       toast.error(error.message || "Failed to delete reading");
       throw error;
@@ -257,6 +259,11 @@ export const CalibrationManager = ({ isOpen, onClose }: CalibrationManagerProps)
                           readings={readings}
                           offsets={offsets}
                           onDeleteReading={handleDeleteReading}
+                          onFetchReadings={async (startDate, endDate) => {
+                            if (selectedSensorId) {
+                              await fetchReadings(selectedSensorId, startDate, endDate);
+                            }
+                          }}
                         />
                       </TabsContent>
                       

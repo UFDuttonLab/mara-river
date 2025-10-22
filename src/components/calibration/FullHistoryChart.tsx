@@ -29,32 +29,24 @@ interface FullHistoryChartProps {
   readings: Reading[];
   offsets: CalibrationOffset[];
   onDeleteReading?: (readingId: string) => Promise<void>;
+  onFetchReadings?: (startDate: Date, endDate: Date) => Promise<void>;
 }
 
-export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDeleteReading }: FullHistoryChartProps) => {
+export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDeleteReading, onFetchReadings }: FullHistoryChartProps) => {
   const [selectedReading, setSelectedReading] = useState<{ id: string; value: number; date: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
-  // Initialize date range from readings data
+  // Set default date range (last 30 days)
   useEffect(() => {
-    if (readings.length > 0) {
-      const dates = readings.map(r => new Date(r.measured_at));
-      const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
-      const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
-      
-      console.log('🔍 DEBUG - FullHistoryChart date initialization:');
-      console.log('  Total readings:', readings.length);
-      console.log('  Min date:', minDate.toISOString(), '→', format(minDate, "MMM d, yyyy"));
-      console.log('  Max date:', maxDate.toISOString(), '→', format(maxDate, "MMM d, yyyy"));
-      console.log('  First reading:', readings[0].measured_at);
-      console.log('  Last reading:', readings[readings.length - 1].measured_at);
-      
-      setStartDate(minDate);
-      setEndDate(maxDate);
-    }
-  }, [readings]);
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    
+    setStartDate(thirtyDaysAgo);
+    setEndDate(today);
+  }, []);
 
   const chartData = useMemo(() => {
     return readings.map((reading) => ({
@@ -163,6 +155,8 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
     });
   }, [offsets]);
 
+  const canLoadData = startDate && endDate && onFetchReadings;
+
   if (readings.length === 0) {
     return (
       <Card>
@@ -170,7 +164,74 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
           <CardTitle>Historical Data</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">No historical data available for this sensor.</p>
+          <div className="space-y-4">
+            <p className="text-muted-foreground">
+              Select a date range and click "Load Data" to view historical sensor readings.
+            </p>
+            
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Start Date:</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-[200px] justify-start text-left font-normal",
+                        !startDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {startDate ? format(startDate, "MMM d, yyyy") : <span>Pick start date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={startDate}
+                      onSelect={setStartDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">End Date:</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-[200px] justify-start text-left font-normal",
+                        !endDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {endDate ? format(endDate, "MMM d, yyyy") : <span>Pick end date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={endDate}
+                      onSelect={setEndDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {canLoadData && (
+                <Button 
+                  onClick={() => onFetchReadings(startDate, endDate)}
+                  disabled={!startDate || !endDate}
+                >
+                  Load Data for Selected Range
+                </Button>
+              )}
+            </div>
+          </div>
         </CardContent>
       </Card>
     );
@@ -209,12 +270,8 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
                 <Calendar
                   mode="single"
                   selected={startDate}
-                  onSelect={(date) => {
-                    console.log('📅 DEBUG - Start date selected:', date?.toISOString());
-                    setStartDate(date);
-                  }}
+                  onSelect={setStartDate}
                   initialFocus
-                  className="pointer-events-auto"
                 />
               </PopoverContent>
             </Popover>
@@ -239,20 +296,21 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
                 <Calendar
                   mode="single"
                   selected={endDate}
-                  onSelect={(date) => {
-                    console.log('📅 DEBUG - End date selected:', date?.toISOString());
-                    setEndDate(date);
-                  }}
+                  onSelect={setEndDate}
                   initialFocus
-                  className="pointer-events-auto"
                 />
               </PopoverContent>
             </Popover>
           </div>
 
-          <Button variant="secondary" onClick={handleResetDateRange}>
-            Reset to Full Range
-          </Button>
+          {canLoadData && (
+            <Button 
+              onClick={() => onFetchReadings(startDate, endDate)}
+              disabled={!startDate || !endDate}
+            >
+              Load Data for Selected Range
+            </Button>
+          )}
         </div>
 
         {startDate && endDate && (

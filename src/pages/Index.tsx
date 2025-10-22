@@ -392,9 +392,18 @@ const Index = () => {
   };
 
   const renderSensorChart = (sensor: Sensor) => {
+    console.log(`📈 Rendering chart for sensor ${sensor.name} (ID: ${sensor.id})`);
+    console.log(`   Total readings: ${sensor.readings?.length || 0}`);
+    
     if (!sensor.readings || sensor.readings.length === 0) {
+      console.log(`   ⚠️ No readings available for ${sensor.name}`);
       return null;
     }
+
+    // Log first and last timestamp
+    const firstTimestamp = sensor.readings[0]?.timestamp;
+    const lastTimestamp = sensor.readings[sensor.readings.length - 1]?.timestamp;
+    console.log(`   Date range: ${firstTimestamp} to ${lastTimestamp}`);
 
     const malfunction = detectMalfunction(sensor);
     const isMalfunctioning = malfunction.isMalfunctioning;
@@ -414,6 +423,9 @@ const Index = () => {
       return acc;
     }, {} as Record<string, typeof sensor.readings[0]>);
 
+    console.log(`   Daily readings (unique dates): ${Object.keys(dailyReadings).length}`);
+    console.log(`   Dates: ${Object.keys(dailyReadings).join(', ')}`);
+
     const readingsToChart = Object.values(dailyReadings);
 
     // Transform readings for recharts with calibration correction
@@ -427,6 +439,8 @@ const Index = () => {
         value: corrected
       };
     });
+
+    console.log(`   Chart data points: ${chartData.length}`, chartData.map(d => d.time));
 
     // Apply calibration to current value
     const { corrected: correctedCurrentValue, offset: currentOffset } = applyCalibrationOffset(

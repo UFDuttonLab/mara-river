@@ -2,9 +2,11 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PasswordDialog } from "./PasswordDialog";
 import { SensorSelector } from "./SensorSelector";
 import { FullHistoryChart } from "./FullHistoryChart";
+import { ReadingDataTable } from "./ReadingDataTable";
 import { OffsetCreationForm } from "./OffsetCreationForm";
 import { OffsetManagementTable } from "./OffsetManagementTable";
 
@@ -16,6 +18,7 @@ interface Sensor {
 }
 
 interface Reading {
+  id: string;
   measured_at: string;
   value: number;
 }
@@ -79,7 +82,7 @@ export const CalibrationManager = ({ isOpen, onClose }: CalibrationManagerProps)
     try {
       const { data, error } = await supabase
         .from("sensor_readings")
-        .select("measured_at, value")
+        .select("id, measured_at, value")
         .eq("channel_id", channelId)
         .order("measured_at", { ascending: true });
 
@@ -184,6 +187,19 @@ export const CalibrationManager = ({ isOpen, onClose }: CalibrationManagerProps)
     }
   };
 
+  const handleDeleteReading = async (readingId: string) => {
+    try {
+      await callEdgeFunction("delete_reading", { reading_id: readingId });
+      toast.success("Reading deleted successfully");
+      if (selectedSensorId) {
+        await fetchReadings(selectedSensorId);
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete reading");
+      throw error;
+    }
+  };
+
   const handleClose = () => {
     setIsAuthenticated(false);
     setPassword("");
@@ -228,12 +244,30 @@ export const CalibrationManager = ({ isOpen, onClose }: CalibrationManagerProps)
                   </div>
                 ) : (
                   <>
-                    <FullHistoryChart
-                      sensorName={selectedSensor.channel_name}
-                      unit={selectedSensor.unit}
-                      readings={readings}
-                      offsets={offsets}
-                    />
+                    <Tabs defaultValue="chart" className="w-full">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="chart">Chart View</TabsTrigger>
+                        <TabsTrigger value="table">Table View</TabsTrigger>
+                      </TabsList>
+                      
+                      <TabsContent value="chart" className="mt-4">
+                        <FullHistoryChart
+                          sensorName={selectedSensor.channel_name}
+                          unit={selectedSensor.unit}
+                          readings={readings}
+                          offsets={offsets}
+                          onDeleteReading={handleDeleteReading}
+                        />
+                      </TabsContent>
+                      
+                      <TabsContent value="table" className="mt-4">
+                        <ReadingDataTable
+                          readings={readings}
+                          unit={selectedSensor.unit}
+                          onDeleteReading={handleDeleteReading}
+                        />
+                      </TabsContent>
+                    </Tabs>
 
                     <OffsetCreationForm
                       sensorId={selectedSensorId}

@@ -6,15 +6,16 @@ const corsHeaders = {
 };
 
 interface OffsetRequest {
-  action: 'create' | 'update' | 'delete';
+  action: 'create' | 'update' | 'delete' | 'delete_reading';
   password: string;
   data?: {
     id?: string;
-    channel_id: string;
-    offset_value: number;
-    valid_from: string;
+    channel_id?: string;
+    offset_value?: number;
+    valid_from?: string;
     valid_until?: string | null;
-    reason: string;
+    reason?: string;
+    reading_id?: string;
   };
 }
 
@@ -141,6 +142,26 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case 'delete_reading': {
+        if (!data || !data.reading_id) {
+          throw new Error('Reading ID required for delete_reading action');
+        }
+
+        const { error: deleteReadingError } = await supabase
+          .from('sensor_readings')
+          .delete()
+          .eq('id', data.reading_id);
+
+        if (deleteReadingError) {
+          console.error('Error deleting reading:', deleteReadingError);
+          throw deleteReadingError;
+        }
+
+        console.log('Deleted reading:', data.reading_id);
+        result = { success: true, id: data.reading_id };
+        break;
+      }
+
       default:
         throw new Error('Invalid action');
     }
@@ -150,10 +171,10 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in manage-calibration-offsets:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message || 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

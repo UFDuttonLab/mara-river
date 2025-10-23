@@ -659,10 +659,12 @@ serve(async (req) => {
     // Readings is an object keyed by channel_id
     Object.entries(readingsObject).forEach(([channelId, readings]: [string, any]) => {
       if (Array.isArray(readings) && readings.length > 0) {
-        const parsedReadings = readings.map((r: any) => ({
-          timestamp: r.timestamp || r.measured_at || new Date().toISOString(),
-          value: parseFloat(r.reading)
-        }));
+        const parsedReadings = readings
+          .map((r: any) => ({
+            timestamp: r.timestamp || r.measured_at || new Date().toISOString(),
+            value: parseFloat(r.reading)
+          }))
+          .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
         channelReadingsMap.set(parseInt(channelId), parsedReadings);
       }
     });
@@ -718,6 +720,7 @@ serve(async (req) => {
         const channelDbId = stevensToDbChannelMap.get(channel.id);
         
         // Get latest reading for current value
+        // Get latest reading (array is sorted by timestamp ascending)
         const latestReading = readings[readings.length - 1];
         
         // Apply calibration offset to current value

@@ -710,81 +710,75 @@ serve(async (req) => {
       return activeOffset ? value + activeOffset.offset_value : value;
     };
 
-    // Build structured sensor data with metadata
+    console.log('Storing data first...');
+    
+    // Store data synchronously so we can query the actual latest values
+    const { station, channels: dbChannels } = await storeMetadata(supabase, targetStation, channels);
+    
+    // Create channel ID map
+    const channelIdMap: Map<number, string> = new Map(
+      dbChannels.map((c: any) => [c.stevens_channel_id, c.id])
+    );
+    
+    // Store readings
+    const readingsCount = await storeReadings(supabase, channelIdMap, readingsObject);
+    
+    // Log the fetch
+    await supabase.from('api_fetch_log').insert({
+      station_id: station.id,
+      fetch_started_at: new Date().toISOString(),
+      fetch_completed_at: new Date().toISOString(),
+      status: 'success',
+      readings_count: readingsCount
+    });
+    
+    console.log(`Stored ${readingsCount} readings in database`);
+
+    // Now query the database for the actual latest readings
+    console.log('Fetching latest values from database...');
     const sensors: any[] = [];
 
-    channels.forEach((channel: any) => {
-      const readings = channelReadingsMap.get(channel.id);
-      if (readings && readings.length > 0) {
-        // Get database UUID for this channel
-        const channelDbId = stevensToDbChannelMap.get(channel.id);
+    for (const channel of channels) {
+      const channelDbId = channelIdMap.get(channel.id);
+      if (!channelDbId) continue;
+
+      // Query the latest reading from the database
+      const { data: latestReadings, error } = await supabase
+        .from('sensor_readings')
+        .select('value, measured_at')
+        .eq('channel_id', channelDbId)
+        .order('measured_at', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.error(`Error fetching latest reading for channel ${channel.name}:`, error);
+        continue;
+      }
+
+      if (latestReadings && latestReadings.length > 0) {
+        const latestReading = latestReadings[0];
         
-        // Get latest reading for current value
-        // Get latest reading (array is sorted by timestamp ascending)
-        const latestReading = readings[readings.length - 1];
-        
-        // Apply calibration offset to current value
-        const correctedCurrentValue = channelDbId 
-          ? applyOffset(latestReading.value, channelDbId, latestReading.timestamp)
-          : latestReading.value;
-        
-        // Apply calibration to all readings
-        const correctedReadings = readings.map(r => {
-          const correctedValue = channelDbId 
-            ? applyOffset(r.value, channelDbId, r.timestamp)
-            : r.value;
-          return {
-            timestamp: r.timestamp,
-            value: parseFloat(correctedValue.toFixed(channel.precision))
-          };
-        });
-        
+        // Apply calibration offset to the database value
+        const correctedCurrentValue = applyOffset(
+          latestReading.value, 
+          channelDbId, 
+          latestReading.measured_at
+        );
+
         const sensor = {
-          id: channelDbId || `sensor_${channel.id}`,
+          id: channelDbId,
           name: channel.name,
           unit: channel.unit,
           category: channel.category,
           currentValue: parseFloat(correctedCurrentValue.toFixed(channel.precision)),
-          currentTimestamp: latestReading.timestamp
+          currentTimestamp: latestReading.measured_at
         };
 
         sensors.push(sensor);
       }
-    });
+    }
 
     console.log('Data fetch complete');
-    
-    // Store data in background (don't block response)
-    const storeDataInBackground = async () => {
-      try {
-        console.log('Storing data in background...');
-        const { station, channels: dbChannels } = await storeMetadata(supabase, targetStation, channels);
-        
-        // Create channel ID map
-        const channelIdMap: Map<number, string> = new Map(
-          dbChannels.map((c: any) => [c.stevens_channel_id, c.id])
-        );
-        
-        // Store readings
-        const readingsCount = await storeReadings(supabase, channelIdMap, readingsObject);
-        
-        // Log the fetch
-        await supabase.from('api_fetch_log').insert({
-          station_id: station.id,
-          fetch_started_at: new Date().toISOString(),
-          fetch_completed_at: new Date().toISOString(),
-          status: 'success',
-          readings_count: readingsCount
-        });
-        
-        console.log(`Stored ${readingsCount} readings in database`);
-      } catch (error) {
-        console.error('Error storing data in background:', error);
-      }
-    };
-    
-    // Start background task
-    storeDataInBackground();
     
     // Generate AI analysis if we have sensor data
     let analysisText = '';

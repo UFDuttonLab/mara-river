@@ -745,8 +745,7 @@ serve(async (req) => {
           unit: channel.unit,
           category: channel.category,
           currentValue: parseFloat(correctedCurrentValue.toFixed(channel.precision)),
-          currentTimestamp: latestReading.timestamp,
-          readings: correctedReadings
+          currentTimestamp: latestReading.timestamp
         };
 
         sensors.push(sensor);

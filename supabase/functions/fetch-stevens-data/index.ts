@@ -416,6 +416,23 @@ serve(async (req) => {
           }
         });
         
+        // Override with actual latest values from database
+        for (const sensor of sensors) {
+          const { data: latestReading, error } = await supabase
+            .from('sensor_readings')
+            .select('value, measured_at')
+            .eq('channel_id', sensor.id)
+            .order('measured_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (latestReading && !error) {
+            const correctedValue = applyOffset(latestReading.value, sensor.id, latestReading.measured_at);
+            sensor.currentValue = correctedValue;
+            sensor.currentTimestamp = latestReading.measured_at;
+          }
+        }
+        
         // Validate sensors before AI analysis
         const validatedSensors = sensors.map(sensor => ({
           sensor,

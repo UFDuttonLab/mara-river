@@ -782,13 +782,28 @@ serve(async (req) => {
           latestReading.measured_at
         );
 
+        // Also fetch last 7 days of readings for the readings array
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        const { data: historicalReadings } = await supabase
+          .from('sensor_readings')
+          .select('value, measured_at')
+          .eq('channel_id', channelDbId)
+          .gte('measured_at', sevenDaysAgo.toISOString())
+          .order('measured_at', { ascending: true });
+
         const sensor = {
           id: channelDbId,
           name: channel.name,
           unit: channel.unit,
           category: channel.category,
           currentValue: parseFloat(correctedCurrentValue.toFixed(channel.precision)),
-          currentTimestamp: latestReading.measured_at
+          currentTimestamp: latestReading.measured_at,
+          readings: (historicalReadings || []).map(r => ({
+            timestamp: r.measured_at,
+            value: applyOffset(r.value, channelDbId, r.measured_at)
+          }))
         };
 
         sensors.push(sensor);
@@ -830,10 +845,12 @@ serve(async (req) => {
             name: s.name,
             unit: s.unit,
             current: s.currentValue,
-            min: Math.min(...s.readings.map((r: any) => r.value)),
-            max: Math.max(...s.readings.map((r: any) => r.value)),
-            avg: s.readings.reduce((sum: number, r: any) => sum + r.value, 0) / s.readings.length,
-            trend: s.readings.length > 1 
+            min: s.readings?.length > 0 ? Math.min(...s.readings.map((r: any) => r.value)) : s.currentValue,
+            max: s.readings?.length > 0 ? Math.max(...s.readings.map((r: any) => r.value)) : s.currentValue,
+            avg: s.readings?.length > 0 
+              ? s.readings.reduce((sum: number, r: any) => sum + r.value, 0) / s.readings.length 
+              : s.currentValue,
+            trend: s.readings?.length > 1 
               ? (s.readings[s.readings.length - 1].value - s.readings[0].value) 
               : 0
           })),

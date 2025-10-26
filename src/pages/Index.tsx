@@ -138,50 +138,68 @@ const Index = () => {
   const fetchData = async (forceRefresh = false, daysBack = 7) => {
     setLoading(true);
     try {
-      // 1. Fetch historical data for charts (7 days from database)
-      const readingsByChannel = await fetchHistoricalChartData();
-      console.log('✅ Fetched historical readings:', readingsByChannel.size, 'channels');
+      console.log('🚀 Fetching dashboard data with single optimized query');
+      
+      if (forceRefresh) {
+        // If manual refresh requested, call edge function to update database first
+        console.log('🔄 Force refresh: calling edge function to update data');
+        await supabase.functions.invoke('fetch-stevens-data', {
+          body: { language, forceRefresh: true, daysBack }
+        });
+      }
 
-      // 2. Fetch current values + AI analysis from edge function
-      const { data: responseData, error } = await supabase.functions.invoke('fetch-stevens-data', {
-        body: { language, forceRefresh, daysBack: 1 } // Only need current values
-      });
+      // Fetch all data with single optimized query
+      const languageMap = {
+        english: 'en',
+        spanish: 'es',
+        portuguese: 'pt'
+      };
+      
+      const { data: dashboardData, error } = await supabase
+        .rpc('get_dashboard_data', { p_language: languageMap[language] }) as { data: any, error: any };
       
       if (error) throw error;
       
-      console.log('🔄 Edge function returned sensors:', responseData.data.sensors.map((s: any) => ({
-        id: s.id,
-        name: s.name,
-        readingCount: s.readings?.length || 0
-      })));
+      console.log('✅ Dashboard data fetched:', {
+        sensorsCount: dashboardData?.sensors?.length || 0,
+        hasAnalysis: !!dashboardData?.analysis,
+        timestamp: dashboardData?.timestamp
+      });
 
-      // 3. Merge: Use current values from edge function, but historical readings from database
-      const mergedData = {
-        ...responseData.data,
-        sensors: responseData.data.sensors.map((sensor: Sensor) => ({
-          ...sensor,
-          readings: readingsByChannel.get(sensor.id) || [] // Use database readings
-        }))
+      // Transform the data to match the expected DashboardData format
+      const transformedData: DashboardData = {
+        station: {
+          name: 'Stevens Water Monitoring System',
+          id: 'default'
+        },
+        sensors: (dashboardData?.sensors || []).map((sensor: any) => ({
+          id: sensor.channelId,
+          name: sensor.name,
+          unit: sensor.unit,
+          category: sensor.category,
+          currentValue: sensor.value,
+          currentTimestamp: new Date().toISOString(),
+          readings: (sensor.chartData || []).map((point: any) => ({
+            timestamp: point.date,
+            value: point.value
+          }))
+        })),
+        analysis: dashboardData?.analysis,
+        timestamp: dashboardData?.timestamp
       };
 
-      console.log('✨ Merged sensors:', mergedData.sensors.map((s: any) => ({
-        id: s.id,
-        name: s.name,
-        readingCount: s.readings?.length || 0
-      })));
-
-      setData(mergedData);
+      setData(transformedData);
       
-      if (mergedData?.message) {
+      if (transformedData?.message) {
         toast({
           title: "No Data Available",
-          description: mergedData.message,
+          description: transformedData.message,
           variant: "destructive",
         });
       } else {
         toast({
           title: "Data Updated",
-          description: `${mergedData.sensors.length} sensors updated successfully`,
+          description: `${transformedData.sensors.length} sensors updated successfully`,
         });
       }
     } catch (error) {
@@ -199,34 +217,12 @@ const Index = () => {
   const handleInitialDataLoad = async () => {
     setLoading(true);
     try {
-      // 1. Fetch and store 3 years of data via edge function
-      const { data: responseData, error } = await supabase.functions.invoke('fetch-stevens-data', {
-        body: { language, forceRefresh: true, daysBack: 1095 }
-      });
-      
-      if (error) throw error;
-      
-      // 2. Fetch last 7 days from database for charts
-      const readingsByChannel = await fetchHistoricalChartData();
-      
-      // 3. Merge data: current values from edge function, chart data from database
-      const mergedData = {
-        ...responseData.data,
-        sensors: responseData.data.sensors.map((sensor: Sensor) => ({
-          ...sensor,
-          readings: readingsByChannel.get(sensor.id) || []
-        }))
-      };
-      
-      setData(mergedData);
+      console.log('🚀 Initial load: Using cached data for instant loading');
+      // Just fetch the cached data - the cron job keeps it fresh
+      await fetchData(false, 7); // No force refresh, use cached data
       fetchDatabaseStats();
-      
-      toast({
-        title: "Initial Data Load Complete",
-        description: "Downloaded 3 years of historical data (showing last 7 days)",
-      });
     } catch (error) {
-      console.error('Error loading initial data:', error);
+      console.error('Error in initial data load:', error);
       toast({
         title: "Error",
         description: "Failed to load initial data",

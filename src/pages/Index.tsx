@@ -655,21 +655,12 @@ const Index = () => {
       <div className="max-w-7xl mx-auto space-y-8">
         <header className="flex items-center justify-between">
           <div>
-            {!data ? (
-              <>
-                <Skeleton className="h-10 w-96 mb-2" />
-                <Skeleton className="h-5 w-64" />
-              </>
-            ) : (
-              <>
-                <h1 className="text-4xl font-bold mb-2">
-                  {data.station.name}
-                </h1>
-                <p className="text-muted-foreground">
-                  Station ID: {data.station.id}
-                </p>
-              </>
-            )}
+            <h1 className="text-4xl font-bold mb-2">
+              Mara River Purungat Bridge
+            </h1>
+            <p className="text-muted-foreground">
+              Station ID: 83933d92-3f4f-4aa5-b0dc-b1c0c60699fb
+            </p>
           </div>
           <div className="flex gap-2">
             <Button onClick={() => setIsCalibrationManagerOpen(true)} variant="outline" size="sm">

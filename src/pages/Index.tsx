@@ -590,8 +590,13 @@ const Index = () => {
               </SelectContent>
             </Select>
           </div>
-          <CardDescription>
-            AI-powered water quality insights
+          <CardDescription className="flex items-center justify-between">
+            <span>AI-powered water quality insights</span>
+            {data?.timestamp && (
+              <span className="text-xs text-muted-foreground">
+                Last updated: {new Date(data.timestamp).toLocaleString()}
+              </span>
+            )}
           </CardDescription>
           
           <div className="flex gap-4 mt-4">

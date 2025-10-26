@@ -26,6 +26,7 @@ import {
   TooltipTrigger 
 } from "@/components/ui/tooltip";
 import { CalibrationManager } from "@/components/calibration/CalibrationManager";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Reading {
   timestamp: string;
@@ -654,12 +655,21 @@ const Index = () => {
       <div className="max-w-7xl mx-auto space-y-8">
         <header className="flex items-center justify-between">
           <div>
-            <h1 className="text-4xl font-bold mb-2">
-              {data?.station.name || 'Water Quality Dashboard'}
-            </h1>
-            <p className="text-muted-foreground">
-              {data?.station.id ? `Station ID: ${data.station.id}` : 'Real-time water quality monitoring'}
-            </p>
+            {!data ? (
+              <>
+                <Skeleton className="h-10 w-96 mb-2" />
+                <Skeleton className="h-5 w-64" />
+              </>
+            ) : (
+              <>
+                <h1 className="text-4xl font-bold mb-2">
+                  {data.station.name}
+                </h1>
+                <p className="text-muted-foreground">
+                  Station ID: {data.station.id}
+                </p>
+              </>
+            )}
           </div>
           <div className="flex gap-2">
             <Button onClick={() => setIsCalibrationManagerOpen(true)} variant="outline" size="sm">

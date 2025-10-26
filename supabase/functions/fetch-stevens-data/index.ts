@@ -270,56 +270,72 @@ function validateSensor(sensor: any): { isValid: boolean; reason?: string } {
   return { isValid: true };
 }
 
-// Get or generate AI analysis
+// Get or generate AI analysis with dual-language caching
 const getOrGenerateAnalysis = async (supabase: any, stationId: string, language: string, sensorData: any) => {
-  // Check cache (< 1 hour old)
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  // Check cache (< 6 hours old)
+  const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
   const { data: cached } = await supabase
     .from('ai_analyses')
     .select('analysis_text')
     .eq('station_id', stationId)
     .eq('language', language)
-    .gte('created_at', oneHourAgo.toISOString())
+    .gte('created_at', sixHoursAgo.toISOString())
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
   
   if (cached) {
-    console.log('Using cached AI analysis');
+    console.log(`Using cached AI analysis for ${language}`);
     return { analysis: cached.analysis_text, cached: true };
   }
   
-  // Generate new analysis
-  console.log('Generating new AI analysis...');
-  const analysisResponse = await fetch(
-    `${Deno.env.get('SUPABASE_URL')}/functions/v1/analyze-river-health`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(sensorData)
-    }
-  );
+  // Generate new analysis for both languages
+  console.log('Generating new AI analyses for both English and Swahili...');
+  const dataTimestamp = new Date().toISOString();
+  const languages = ['english', 'swahili'];
+  const analyses: Record<string, string> = {};
   
-  if (!analysisResponse.ok) {
-    console.error('Analysis generation failed:', await analysisResponse.text());
-    throw new Error('Failed to generate analysis');
+  for (const lang of languages) {
+    const analysisPayload = {
+      ...sensorData,
+      language: lang
+    };
+    
+    const analysisResponse = await fetch(
+      `${Deno.env.get('SUPABASE_URL')}/functions/v1/analyze-river-health`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(analysisPayload)
+      }
+    );
+    
+    if (!analysisResponse.ok) {
+      console.error(`Analysis generation failed for ${lang}:`, await analysisResponse.text());
+      continue;
+    }
+    
+    const { analysis } = await analysisResponse.json();
+    analyses[lang] = analysis;
+    
+    // Cache with the same data_timestamp for both languages
+    await supabase.from('ai_analyses').insert({
+      station_id: stationId,
+      analysis_text: analysis,
+      language: lang,
+      sensor_data_snapshot: analysisPayload,
+      data_timestamp: dataTimestamp
+    });
+    
+    console.log(`Cached AI analysis for ${lang}`);
   }
   
-  const { analysis } = await analysisResponse.json();
-  
-  // Cache it
-  await supabase.from('ai_analyses').insert({
-    station_id: stationId,
-    analysis_text: analysis,
-    language: language,
-    sensor_data_snapshot: sensorData,
-    data_timestamp: new Date().toISOString()
-  });
-  
-  return { analysis, cached: false };
+  // Return the requested language
+  const requestedAnalysis = analyses[language] || analyses['english'] || '';
+  return { analysis: requestedAnalysis, cached: false };
 };
 
 serve(async (req) => {

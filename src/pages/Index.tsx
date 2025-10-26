@@ -653,15 +653,10 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background p-8">
       <div className="max-w-7xl mx-auto space-y-8">
-        <header className="flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold mb-2">
-              Mara River Purungat Bridge
-            </h1>
-            <p className="text-muted-foreground">
-              Station ID: 83933d92-3f4f-4aa5-b0dc-b1c0c60699fb
-            </p>
-          </div>
+        <header>
+          <h1 className="text-4xl font-bold mb-4">
+            Mara River Purungat Bridge
+          </h1>
           <div className="flex gap-2">
             <Button onClick={() => setIsCalibrationManagerOpen(true)} variant="outline" size="sm">
               <Settings className="h-4 w-4 mr-2" />

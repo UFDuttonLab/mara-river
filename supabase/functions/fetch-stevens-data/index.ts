@@ -55,9 +55,9 @@ const shouldFetchFreshData = async (supabase: any, stationUuid: string) => {
   if (!data) return true; // No previous fetch
   
   const lastFetch = new Date(data.fetch_completed_at);
-  const twoHoursAgo = new Date(Date.now() - 120 * 60 * 1000);
+  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
   
-  return lastFetch < twoHoursAgo;
+  return lastFetch < tenMinutesAgo;
 };
 
 // Get cached sensor data from database

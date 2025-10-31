@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { formatInTimeZone } from 'date-fns-tz';
+import { EAST_AFRICAN_TIMEZONE, TIMEZONE_LABEL } from '@/lib/timezoneConfig';
 import {
   Accordion,
   AccordionContent,
@@ -474,7 +476,7 @@ const Index = () => {
       
       return {
         timestamp: date.getTime(), // Timestamp for proper sorting
-        dateLabel: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        dateLabel: formatInTimeZone(date, EAST_AFRICAN_TIMEZONE, 'MMM d'),
         value: corrected
       };
     }).sort((a, b) => a.timestamp - b.timestamp); // Ensure chronological order
@@ -528,8 +530,7 @@ const Index = () => {
                 dataKey="timestamp" 
                 tick={{ fontSize: 12 }}
                 tickFormatter={(timestamp) => {
-                  const date = new Date(timestamp);
-                  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                  return formatInTimeZone(new Date(timestamp), EAST_AFRICAN_TIMEZONE, 'MMM d');
                 }}
               />
               <YAxis 
@@ -538,7 +539,9 @@ const Index = () => {
               />
               <Tooltip 
                 formatter={(value: number) => [`${value.toFixed(2)} ${sensor.unit}`, sensor.name]}
-                labelFormatter={(timestamp) => new Date(timestamp).toLocaleString()}
+                labelFormatter={(timestamp) => 
+                  formatInTimeZone(new Date(timestamp), EAST_AFRICAN_TIMEZONE, 'PPpp') + ` ${TIMEZONE_LABEL}`
+                }
               />
               <Line 
                 type="monotone" 

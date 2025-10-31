@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { format } from "date-fns";
+import { formatInTimeZone } from 'date-fns-tz';
+import { EAST_AFRICAN_TIMEZONE, TIMEZONE_LABEL } from '@/lib/timezoneConfig';
 import { Trash2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,7 @@ export const ReadingDataTable = ({ readings, unit, onDeleteReading }: ReadingDat
 
   const filteredReadings = readings.filter((reading) => {
     const searchLower = searchTerm.toLowerCase();
-    const dateStr = format(new Date(reading.measured_at), "MMM d, yyyy HH:mm").toLowerCase();
+    const dateStr = formatInTimeZone(new Date(reading.measured_at), EAST_AFRICAN_TIMEZONE, "MMM d, yyyy HH:mm").toLowerCase();
     const valueStr = reading.value.toString();
     return dateStr.includes(searchLower) || valueStr.includes(searchLower);
   });
@@ -34,7 +35,7 @@ export const ReadingDataTable = ({ readings, unit, onDeleteReading }: ReadingDat
     setSelectedReading({
       id: reading.id,
       value: reading.value,
-      date: format(new Date(reading.measured_at), "MMM d, yyyy HH:mm"),
+      date: formatInTimeZone(new Date(reading.measured_at), EAST_AFRICAN_TIMEZONE, "MMM d, yyyy HH:mm") + ` ${TIMEZONE_LABEL}`,
     });
   };
 
@@ -82,7 +83,7 @@ export const ReadingDataTable = ({ readings, unit, onDeleteReading }: ReadingDat
             ) : (
               filteredReadings.map((reading) => (
                 <TableRow key={reading.id} className="hover:bg-muted/50">
-                  <TableCell>{format(new Date(reading.measured_at), "MMM d, yyyy HH:mm")}</TableCell>
+                  <TableCell>{formatInTimeZone(new Date(reading.measured_at), EAST_AFRICAN_TIMEZONE, "MMM d, yyyy HH:mm")} {TIMEZONE_LABEL}</TableCell>
                   <TableCell>{reading.value} {unit}</TableCell>
                   <TableCell>
                     <Button

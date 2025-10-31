@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { format } from "date-fns";
+import { formatInTimeZone } from 'date-fns-tz';
+import { EAST_AFRICAN_TIMEZONE, TIMEZONE_LABEL } from '@/lib/timezoneConfig';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -94,11 +95,11 @@ export const OffsetManagementTable = ({ offsets, onDeleteOffset, onDeactivateOff
                       {offset.offset_value > 0 ? '+' : ''}{offset.offset_value}
                     </TableCell>
                     <TableCell>
-                      {format(new Date(offset.valid_from), "MMM d, yyyy HH:mm")}
+                      {formatInTimeZone(new Date(offset.valid_from), EAST_AFRICAN_TIMEZONE, "MMM d, yyyy HH:mm")} {TIMEZONE_LABEL}
                     </TableCell>
                     <TableCell>
                       {offset.valid_until 
-                        ? format(new Date(offset.valid_until), "MMM d, yyyy HH:mm")
+                        ? `${formatInTimeZone(new Date(offset.valid_until), EAST_AFRICAN_TIMEZONE, "MMM d, yyyy HH:mm")} ${TIMEZONE_LABEL}`
                         : "Ongoing"}
                     </TableCell>
                     <TableCell className="max-w-xs truncate" title={offset.reason}>

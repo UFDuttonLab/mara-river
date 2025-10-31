@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus } from "lucide-react";
-import { format } from "date-fns";
+import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
+import { EAST_AFRICAN_TIMEZONE } from '@/lib/timezoneConfig';
 
 interface OffsetCreationFormProps {
   sensorId: string;
@@ -22,7 +23,7 @@ interface OffsetCreationFormProps {
 export const OffsetCreationForm = ({ sensorId, sensorName, onCreateOffset }: OffsetCreationFormProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [offsetValue, setOffsetValue] = useState("");
-  const [validFrom, setValidFrom] = useState(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
+  const [validFrom, setValidFrom] = useState(formatInTimeZone(new Date(), EAST_AFRICAN_TIMEZONE, "yyyy-MM-dd'T'HH:mm"));
   const [validUntil, setValidUntil] = useState("");
   const [reason, setReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,17 +37,25 @@ export const OffsetCreationForm = ({ sensorId, sensorName, onCreateOffset }: Off
 
     setIsSubmitting(true);
     try {
+      // Convert EAT datetime input to UTC for storage
+      const validFromDate = new Date(validFrom);
+      const validFromUTC = toZonedTime(validFromDate, EAST_AFRICAN_TIMEZONE).toISOString();
+      
+      const validUntilUTC = validUntil 
+        ? toZonedTime(new Date(validUntil), EAST_AFRICAN_TIMEZONE).toISOString()
+        : null;
+
       await onCreateOffset({
         channel_id: sensorId,
         offset_value: parseFloat(offsetValue),
-        valid_from: validFrom,
-        valid_until: validUntil || null,
+        valid_from: validFromUTC,
+        valid_until: validUntilUTC,
         reason: reason,
       });
       
       // Reset form
       setOffsetValue("");
-      setValidFrom(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
+      setValidFrom(formatInTimeZone(new Date(), EAST_AFRICAN_TIMEZONE, "yyyy-MM-dd'T'HH:mm"));
       setValidUntil("");
       setReason("");
       setIsOpen(false);

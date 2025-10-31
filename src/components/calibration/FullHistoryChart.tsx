@@ -1,6 +1,8 @@
 import { useMemo, useState, useEffect } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea } from "recharts";
 import { format } from "date-fns";
+import { formatInTimeZone } from 'date-fns-tz';
+import { EAST_AFRICAN_TIMEZONE, TIMEZONE_LABEL } from '@/lib/timezoneConfig';
 import { CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -53,7 +55,7 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
       id: reading.id,
       timestamp: new Date(reading.measured_at).getTime(),
       value: reading.value,
-      date: format(new Date(reading.measured_at), "MMM d, yyyy HH:mm"),
+      date: formatInTimeZone(new Date(reading.measured_at), EAST_AFRICAN_TIMEZONE, "MMM d, yyyy HH:mm") + ` ${TIMEZONE_LABEL}`,
     }));
   }, [readings]);
 
@@ -82,7 +84,7 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
       const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
       
       console.log('🔄 DEBUG - Reset date range called:');
-      console.log('  Resetting to:', format(minDate, "MMM d, yyyy"), '-', format(maxDate, "MMM d, yyyy"));
+      console.log('  Resetting to:', formatInTimeZone(minDate, EAST_AFRICAN_TIMEZONE, "MMM d, yyyy"), '-', formatInTimeZone(maxDate, EAST_AFRICAN_TIMEZONE, "MMM d, yyyy"));
       
       setStartDate(minDate);
       setEndDate(maxDate);
@@ -326,7 +328,7 @@ export const FullHistoryChart = ({ sensorName, unit, readings, offsets, onDelete
               dataKey="timestamp" 
               type="number"
               domain={['dataMin', 'dataMax']}
-              tickFormatter={(timestamp) => format(new Date(timestamp), "MMM yyyy")}
+              tickFormatter={(timestamp) => formatInTimeZone(new Date(timestamp), EAST_AFRICAN_TIMEZONE, "MMM yyyy")}
               scale="time"
             />
             <YAxis 

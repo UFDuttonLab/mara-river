@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/tooltip";
 import { CalibrationManager } from "@/components/calibration/CalibrationManager";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LatestCameraImage } from "@/components/camera/LatestCameraImage";
 
 interface Reading {
   timestamp: string;
@@ -683,6 +684,9 @@ const Index = () => {
                 Showing cached data • Last updated: {new Date(data.lastUpdated || data.timestamp).toLocaleString()}
               </div>
             )}
+            
+            <LatestCameraImage />
+            
             {data.analysis && renderAnalysis(data.analysis)}
             
             <div className="space-y-4 mt-6">

@@ -17,6 +17,14 @@ export const LatestCameraImage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Helper to format camera timestamp (stored as EAT but mislabeled as UTC)
+  const formatCameraTime = (timestamp: string) => {
+    // Remove 'Z' to treat as naive datetime, preventing timezone conversion
+    const naive = timestamp.replace('Z', '');
+    const date = new Date(naive);
+    return format(date, 'PPpp');
+  };
+
   const fetchLatestImage = async () => {
     setLoading(true);
     setError(null);
@@ -114,7 +122,7 @@ export const LatestCameraImage = () => {
         <div className="text-sm text-muted-foreground space-y-1">
           <p>Camera: {CAMERA_SERIAL}</p>
           <p>
-            Captured: {format(new Date(imageData.time_taken_timestamp), 'PPpp')} EAT
+            Captured: {formatCameraTime(imageData.time_taken_timestamp)} EAT
           </p>
         </div>
       </CardHeader>
@@ -122,7 +130,7 @@ export const LatestCameraImage = () => {
         <div className="relative w-full overflow-hidden rounded-lg border bg-muted">
           <img
             src={imageUrl}
-            alt={`Camera ${CAMERA_SERIAL} - ${format(new Date(imageData.time_taken_timestamp), 'PPpp')} EAT`}
+            alt={`Camera ${CAMERA_SERIAL} - ${formatCameraTime(imageData.time_taken_timestamp)} EAT`}
             className="w-full h-auto object-contain"
             loading="lazy"
           />

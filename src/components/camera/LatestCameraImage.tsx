@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Camera, RefreshCw, AlertCircle } from 'lucide-react';
 import { cameraSupabase } from '@/integrations/supabase/camera-client';
 import type { ReconyvImage } from '@/integrations/supabase/camera-types';
-import { format } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 
 const CAMERA_SERIAL = 'HLPXLS04231032';
 const STORAGE_BUCKET = 'reconyx-images';
+const CAMERA_TIMEZONE = 'Africa/Nairobi'; // East African Time (EAT)
 
 export const LatestCameraImage = () => {
   const [imageData, setImageData] = useState<ReconyvImage | null>(null);
@@ -113,7 +114,7 @@ export const LatestCameraImage = () => {
         <div className="text-sm text-muted-foreground space-y-1">
           <p>Camera: {CAMERA_SERIAL}</p>
           <p>
-            Captured: {format(new Date(imageData.time_taken_timestamp), 'PPpp')}
+            Captured: {formatInTimeZone(new Date(imageData.time_taken_timestamp), CAMERA_TIMEZONE, 'PPpp')} EAT
           </p>
         </div>
       </CardHeader>
@@ -121,7 +122,7 @@ export const LatestCameraImage = () => {
         <div className="relative w-full overflow-hidden rounded-lg border bg-muted">
           <img
             src={imageUrl}
-            alt={`Camera ${CAMERA_SERIAL} - ${format(new Date(imageData.time_taken_timestamp), 'PPpp')}`}
+            alt={`Camera ${CAMERA_SERIAL} - ${formatInTimeZone(new Date(imageData.time_taken_timestamp), CAMERA_TIMEZONE, 'PPpp')} EAT`}
             className="w-full h-auto object-contain"
             loading="lazy"
           />

@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Camera, RefreshCw, AlertCircle } from 'lucide-react';
 import { cameraSupabase } from '@/integrations/supabase/camera-client';
 import type { ReconyvImage } from '@/integrations/supabase/camera-types';
-import { format } from 'date-fns';
 
 const CAMERA_SERIAL = 'HLPXLS04231032';
 const STORAGE_BUCKET = 'reconyx-images';
@@ -19,10 +18,20 @@ export const LatestCameraImage = () => {
 
   // Helper to format camera timestamp (stored as EAT but mislabeled as UTC)
   const formatCameraTime = (timestamp: string) => {
-    // Remove 'Z' to treat as naive datetime, preventing timezone conversion
-    const naive = timestamp.replace('Z', '');
-    const date = new Date(naive);
-    return format(date, 'PPpp');
+    // Extract datetime components directly from string without any Date object conversion
+    // timestamp format: "2025-10-31T18:30:00+00:00" or "2025-10-31T18:30:00Z"
+    const match = timestamp.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+    
+    if (!match) return timestamp; // Fallback if format unexpected
+    
+    const [, year, month, day, hour, minute] = match;
+    
+    // Format as readable date/time
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthName = monthNames[parseInt(month) - 1];
+    
+    return `${monthName} ${parseInt(day)}, ${year} at ${hour}:${minute}`;
   };
 
   const fetchLatestImage = async () => {

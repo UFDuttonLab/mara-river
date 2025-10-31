@@ -74,7 +74,10 @@ type Language = 'english' | 'swahili';
 const Index = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [language, setLanguage] = useState<Language>('english');
+  const [language, setLanguage] = useState<Language>(() => {
+    const saved = localStorage.getItem('preferredLanguage');
+    return (saved as Language) || 'english';
+  });
   const [dbStats, setDbStats] = useState<{ stations: number; channels: number; readings: number } | null>(null);
   const [calibrationOffsets, setCalibrationOffsets] = useState<CalibrationOffset[]>([]);
   const [isCalibrationManagerOpen, setIsCalibrationManagerOpen] = useState(false);

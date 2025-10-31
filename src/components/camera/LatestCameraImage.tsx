@@ -41,7 +41,7 @@ export const LatestCameraImage = () => {
       const { data: signedUrlData, error: urlError } = await cameraSupabase
         .storage
         .from(STORAGE_BUCKET)
-        .createSignedUrl(imageData.file_path, 3600); // 1 hour expiry
+        .createSignedUrl(imageData.storage_path, 3600); // 1 hour expiry
 
       if (urlError) throw urlError;
       if (!signedUrlData?.signedUrl) throw new Error('Failed to generate image URL');

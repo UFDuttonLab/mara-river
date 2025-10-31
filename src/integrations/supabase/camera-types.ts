@@ -2,7 +2,7 @@ export type ReconyvImage = {
   id: string;
   camera_serial: string;
   time_taken_timestamp: string;
-  file_path: string;
+  storage_path: string;
   file_name: string;
   created_at: string;
   camera_name?: string;

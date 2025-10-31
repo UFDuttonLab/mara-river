@@ -57,6 +57,7 @@ interface DashboardData {
   message?: string;
   cached?: boolean;
   lastUpdated?: string;
+  language?: Language;
 }
 
 interface CalibrationOffset {
@@ -192,6 +193,15 @@ const Index = () => {
 
       setData(transformedData);
       
+      // Sync language selector with loaded data
+      if (dashboardData?.language) {
+        const dataLanguage = dashboardData.language === 'en' ? 'english' : dashboardData.language === 'sw' ? 'swahili' : 'english';
+        if (dataLanguage !== language) {
+          setLanguage(dataLanguage);
+          localStorage.setItem('preferredLanguage', dataLanguage);
+        }
+      }
+      
       if (transformedData?.message) {
         toast({
           title: "No Data Available",
@@ -235,8 +245,41 @@ const Index = () => {
     }
   };
 
+  const handleForceRefresh = async () => {
+    setLoading(true);
+    try {
+      console.log('🔄 Force refreshing data from Stevens API...');
+      const { data: responseData, error } = await supabase.functions.invoke('fetch-stevens-data', {
+        body: { 
+          language, 
+          daysBack: 7,
+          forceRefresh: true
+        }
+      });
+      
+      if (error) throw error;
+      
+      setData(responseData.data);
+      
+      toast({
+        title: "Data Refreshed",
+        description: "Latest data fetched from Stevens API",
+      });
+    } catch (error) {
+      console.error('Error force refreshing:', error);
+      toast({
+        title: "Error",
+        description: "Failed to refresh data from Stevens API",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLanguageChange = async (newLanguage: Language) => {
     setLanguage(newLanguage);
+    localStorage.setItem('preferredLanguage', newLanguage);
     setLoading(true);
     try {
       // 1. Fetch last 7 days from database for charts
@@ -663,9 +706,13 @@ const Index = () => {
               <Settings className="h-4 w-4 mr-2" />
               Calibration
             </Button>
+            <Button onClick={handleForceRefresh} disabled={loading} size="sm">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Force Refresh from Stevens
+            </Button>
             <Button onClick={() => fetchData(false)} disabled={loading} variant="outline" size="sm">
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-              Refresh
+              Refresh Analysis
             </Button>
             {dbStats && dbStats.readings === 0 && (
               <Button onClick={handleInitialDataLoad} disabled={loading} variant="default" size="sm">

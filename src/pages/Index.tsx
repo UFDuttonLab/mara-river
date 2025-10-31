@@ -76,7 +76,9 @@ const Index = () => {
   const [loading, setLoading] = useState(false);
   const [language, setLanguage] = useState<Language>(() => {
     const saved = localStorage.getItem('preferredLanguage');
-    return (saved as Language) || 'english';
+    const initialLanguage = (saved as Language) || 'english';
+    console.log(`🌍 Initial language from localStorage: ${initialLanguage}`);
+    return initialLanguage;
   });
   const [dbStats, setDbStats] = useState<{ stations: number; channels: number; readings: number } | null>(null);
   const [calibrationOffsets, setCalibrationOffsets] = useState<CalibrationOffset[]>([]);
@@ -200,12 +202,19 @@ const Index = () => {
 
       setData(transformedData);
       
-      // Sync language selector with loaded data
+      // CRITICAL: Sync language selector with returned data
       if (dashboardData?.language) {
-        const dataLanguage = dashboardData.language === 'en' ? 'english' : dashboardData.language === 'sw' ? 'swahili' : 'english';
-        if (dataLanguage !== language) {
-          setLanguage(dataLanguage);
-          localStorage.setItem('preferredLanguage', dataLanguage);
+        const returnedLanguage = dashboardData.language;
+        console.log(`📊 Data language: ${returnedLanguage}, UI language: ${language}`);
+        
+        if (returnedLanguage !== language) {
+          console.warn(`⚠️ Language mismatch detected! Requested: ${language}, Got: ${returnedLanguage}`);
+          setLanguage(returnedLanguage);
+          localStorage.setItem('preferredLanguage', returnedLanguage);
+          toast({
+            title: "Language Synchronized",
+            description: `Switched to ${returnedLanguage === 'english' ? 'English' : 'Kiswahili'}`,
+          });
         }
       }
       
@@ -254,23 +263,41 @@ const Index = () => {
 
 
   const handleLanguageChange = async (newLanguage: Language) => {
+    // Only proceed if actually changing language
+    if (newLanguage === language) return;
+    
+    console.log(`🌐 Switching language from ${language} to ${newLanguage}`);
     setLanguage(newLanguage);
     localStorage.setItem('preferredLanguage', newLanguage);
     setLoading(true);
+    
     try {
       // 1. Fetch last 7 days from database for charts
       const readingsByChannel = await fetchHistoricalChartData();
       
-      // 2. Fetch current values + new language analysis from edge function
+      // 2. Fetch with explicit language to ensure correct analysis
       const { data: responseData, error } = await supabase.functions.invoke('fetch-stevens-data', {
-        body: { language: newLanguage, daysBack: 1 }
+        body: { 
+          language: newLanguage, 
+          forceRefresh: false,
+          daysBack: 1 
+        }
       });
       
       if (error) throw error;
       
-      // 3. Merge data
+      // 3. Validate response language matches request
+      if (responseData.data.language && responseData.data.language !== newLanguage) {
+        console.error(`❌ Language mismatch! Requested ${newLanguage}, got ${responseData.data.language}`);
+        throw new Error(`Failed to load ${newLanguage} analysis`);
+      }
+      
+      console.log(`✅ Received ${responseData.data.language} analysis`);
+      
+      // 4. Merge data
       const mergedData = {
         ...responseData.data,
+        language: newLanguage, // Ensure language is set
         sensors: responseData.data.sensors.map((sensor: Sensor) => ({
           ...sensor,
           readings: readingsByChannel.get(sensor.id) || []
@@ -285,9 +312,12 @@ const Index = () => {
       });
     } catch (error) {
       console.error('Error updating language:', error);
+      // Revert language state on error
+      setLanguage(language);
+      localStorage.setItem('preferredLanguage', language);
       toast({
         title: "Error",
-        description: "Failed to update language",
+        description: "Failed to update language. Please try again.",
         variant: "destructive",
       });
     } finally {

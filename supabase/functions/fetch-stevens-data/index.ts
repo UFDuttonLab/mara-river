@@ -504,6 +504,7 @@ serve(async (req) => {
               },
               sensors,
               analysis,
+              language: language,
               cached: true,
               lastUpdated: cachedData.station.updated_at,
               timestamp: new Date().toISOString()
@@ -940,6 +941,7 @@ serve(async (req) => {
         sensors,
         timestamp: new Date().toISOString(),
         analysis: analysisText,
+        language: language,
         cached: false,
         lastUpdated: new Date().toISOString()
       }

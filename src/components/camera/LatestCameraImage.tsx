@@ -36,8 +36,9 @@ export const LatestCameraImage = () => {
     return `${monthName} ${parseInt(day)}, ${year} at ${hour}:${minute}`;
   };
 
-  const loadImageAtIndex = async (index: number) => {
-    const image = allImages[index];
+  const loadImageAtIndex = async (index: number, images?: ReconyvImage[]) => {
+    const imageArray = images || allImages;
+    const image = imageArray[index];
     if (!image) return;
 
     setLoading(true);
@@ -83,7 +84,7 @@ export const LatestCameraImage = () => {
 
       setAllImages(data);
       setCurrentIndex(0);
-      await loadImageAtIndex(0);
+      await loadImageAtIndex(0, data);
     } catch (err) {
       console.error('Error fetching camera images:', err);
       setError(err instanceof Error ? err.message : 'Failed to load images');

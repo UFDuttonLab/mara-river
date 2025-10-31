@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { Camera, RefreshCw, AlertCircle } from 'lucide-react';
+import { Camera, RefreshCw, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cameraSupabase } from '@/integrations/supabase/camera-client';
 import type { ReconyvImage } from '@/integrations/supabase/camera-types';
 
@@ -11,6 +11,8 @@ const STORAGE_BUCKET = 'reconyx-images';
 // Note: Database stores timestamps in EAT (mislabeled as UTC)
 
 export const LatestCameraImage = () => {
+  const [allImages, setAllImages] = useState<ReconyvImage[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [imageData, setImageData] = useState<ReconyvImage | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,47 +36,79 @@ export const LatestCameraImage = () => {
     return `${monthName} ${parseInt(day)}, ${year} at ${hour}:${minute}`;
   };
 
-  const fetchLatestImage = async () => {
+  const loadImageAtIndex = async (index: number) => {
+    const image = allImages[index];
+    if (!image) return;
+
     setLoading(true);
     setError(null);
 
     try {
-      // Query for latest image from specific camera
-      const { data, error: queryError } = await cameraSupabase
-        .from('reconyx_images')
-        .select('*')
-        .eq('camera_serial', CAMERA_SERIAL)
-        .not('time_taken_timestamp', 'is', null)
-        .order('time_taken_timestamp', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (queryError) throw queryError;
-      if (!data) throw new Error('No images found for this camera');
-
-      const imageData = data as ReconyvImage;
-      setImageData(imageData);
+      setImageData(image);
 
       // Get signed URL for the image
       const { data: signedUrlData, error: urlError } = await cameraSupabase
         .storage
         .from(STORAGE_BUCKET)
-        .createSignedUrl(imageData.storage_path, 3600); // 1 hour expiry
+        .createSignedUrl(image.storage_path, 3600); // 1 hour expiry
 
       if (urlError) throw urlError;
       if (!signedUrlData?.signedUrl) throw new Error('Failed to generate image URL');
 
       setImageUrl(signedUrlData.signedUrl);
     } catch (err) {
-      console.error('Error fetching camera image:', err);
+      console.error('Error loading camera image:', err);
       setError(err instanceof Error ? err.message : 'Failed to load image');
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchLatestImages = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Query for latest 50 images from specific camera
+      const { data, error: queryError } = await cameraSupabase
+        .from('reconyx_images')
+        .select('*')
+        .eq('camera_serial', CAMERA_SERIAL)
+        .not('time_taken_timestamp', 'is', null)
+        .order('time_taken_timestamp', { ascending: false })
+        .limit(50);
+
+      if (queryError) throw queryError;
+      if (!data || data.length === 0) throw new Error('No images found for this camera');
+
+      setAllImages(data);
+      setCurrentIndex(0);
+      await loadImageAtIndex(0);
+    } catch (err) {
+      console.error('Error fetching camera images:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load images');
+      setLoading(false);
+    }
+  };
+
+  const goToPreviousImage = async () => {
+    if (currentIndex < allImages.length - 1) {
+      const newIndex = currentIndex + 1;
+      setCurrentIndex(newIndex);
+      await loadImageAtIndex(newIndex);
+    }
+  };
+
+  const goToNextImage = async () => {
+    if (currentIndex > 0) {
+      const newIndex = currentIndex - 1;
+      setCurrentIndex(newIndex);
+      await loadImageAtIndex(newIndex);
+    }
+  };
+
   useEffect(() => {
-    fetchLatestImage();
+    fetchLatestImages();
   }, []);
 
   if (loading) {
@@ -107,7 +141,7 @@ export const LatestCameraImage = () => {
           <p className="text-muted-foreground mb-4">
             {error || 'Unable to load the latest camera image'}
           </p>
-          <Button onClick={fetchLatestImage} variant="outline" size="sm">
+          <Button onClick={fetchLatestImages} variant="outline" size="sm">
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry
           </Button>
@@ -124,7 +158,7 @@ export const LatestCameraImage = () => {
             <Camera className="h-5 w-5" />
             <span>Latest Camera Image</span>
           </div>
-          <Button onClick={fetchLatestImage} variant="ghost" size="sm">
+          <Button onClick={fetchLatestImages} variant="ghost" size="sm">
             <RefreshCw className="h-4 w-4" />
           </Button>
         </CardTitle>
@@ -143,6 +177,33 @@ export const LatestCameraImage = () => {
             className="w-full h-auto object-contain"
             loading="lazy"
           />
+        </div>
+        
+        {/* Navigation Controls */}
+        <div className="flex items-center justify-between mt-4 gap-4">
+          <Button
+            onClick={goToPreviousImage}
+            variant="outline"
+            size="sm"
+            disabled={currentIndex >= allImages.length - 1 || loading}
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Previous
+          </Button>
+          
+          <span className="text-sm text-muted-foreground">
+            Image {currentIndex + 1} of {allImages.length}
+          </span>
+          
+          <Button
+            onClick={goToNextImage}
+            variant="outline"
+            size="sm"
+            disabled={currentIndex === 0 || loading}
+          >
+            Next
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
         </div>
       </CardContent>
     </Card>

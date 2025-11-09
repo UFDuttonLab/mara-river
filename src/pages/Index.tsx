@@ -359,7 +359,7 @@ const Index = () => {
   };
 
   useEffect(() => {
-    fetchData(true); // Force fresh data on initial page load
+    fetchData(false); // Use cached data (kept fresh by hourly cron job)
     fetchDatabaseStats();
     fetchCalibrationOffsets();
     
